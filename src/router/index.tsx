@@ -1,0 +1,111 @@
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { useAuthStore } from '../stores/authStore';
+import { AuthLayout } from '../components/layout/AuthLayout';
+import { AppLayout } from '../components/layout/AppLayout';
+import LoginPage from '../pages/LoginPage';
+import RegisterPage from '../pages/RegisterPage';
+import DashboardPage from '../pages/DashboardPage';
+import AdminDashboardPage from '../pages/AdminDashboardPage';
+import ApiKeysPage from '../pages/ApiKeysPage';
+import AccountsPage from '../pages/AccountsPage';
+import GroupsPage from '../pages/GroupsPage';
+import GroupDetailPage from '../pages/GroupDetailPage';
+import PaymentsPage from '../pages/PaymentsPage';
+import PaymentDetailPage from '../pages/PaymentDetailPage';
+import UsagePage from '../pages/UsagePage';
+import AdminUsagePage from '../pages/AdminUsagePage';
+import MarketingPage from '../pages/MarketingPage';
+import ModelPricesPage from '../pages/ModelPricesPage';
+import ProfilePage from '../pages/ProfilePage';
+import RedeemPage from '../pages/RedeemPage';
+
+function AuthGuard() {
+  const token = useAuthStore((s) => s.token);
+  const isAuthenticating = useAuthStore((s) => s.isAuthenticating);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+
+  if (isAuthenticating) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] dark:bg-dark-950">
+        <div className="animate-spin h-10 w-10 rounded-full border-2 border-violet-500 border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!token) return <Navigate to="/login" replace />;
+
+  // Redirect admin users away from user routes
+  const path = window.location.pathname;
+  if (isAdmin && path === '/dashboard') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
+
+  return <Outlet />;
+}
+
+function AdminGuard() {
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+  const token = useAuthStore((s) => s.token);
+
+  if (!token) return <Navigate to="/login" replace />;
+  if (!isAdmin) return <Navigate to="/dashboard" replace />;
+
+  return <Outlet />;
+}
+
+function GuestGuard() {
+  const token = useAuthStore((s) => s.token);
+  const isAdmin = useAuthStore((s) => s.isAdmin);
+
+  if (token) {
+    return <Navigate to={isAdmin ? '/admin/dashboard' : '/dashboard'} replace />;
+  }
+
+  return <Outlet />;
+}
+
+export default function AppRouter() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        {/* Auth pages (redirect if already logged in) */}
+        <Route element={<GuestGuard />}>
+          <Route element={<AuthLayout />}>
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/register" element={<RegisterPage />} />
+          </Route>
+        </Route>
+
+        {/* User routes */}
+        <Route element={<AuthGuard />}>
+          <Route element={<AppLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/api-keys" element={<ApiKeysPage />} />
+            <Route path="/usage" element={<UsagePage />} />
+            <Route path="/redeem" element={<RedeemPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Route>
+        </Route>
+
+        {/* Admin routes */}
+        <Route element={<AdminGuard />}>
+          <Route element={<AppLayout />}>
+            <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+            <Route path="/admin/accounts" element={<AccountsPage />} />
+            <Route path="/admin/groups" element={<GroupsPage />} />
+            <Route path="/admin/groups/:groupId" element={<GroupDetailPage />} />
+            <Route path="/admin/payments" element={<PaymentsPage />} />
+            <Route path="/admin/payments/:orderId" element={<PaymentDetailPage />} />
+            <Route path="/admin/usage" element={<AdminUsagePage />} />
+            <Route path="/admin/marketing" element={<MarketingPage />} />
+            <Route path="/admin/model-prices" element={<ModelPricesPage />} />
+          </Route>
+        </Route>
+
+        {/* Default redirect */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      </Routes>
+    </BrowserRouter>
+  );
+}
