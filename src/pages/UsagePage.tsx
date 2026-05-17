@@ -1,9 +1,58 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { PageHeader } from '../components/ui/PageHeader';
 import { DataTable } from '../components/ui/DataTable';
 import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
+
+const platformConfig: Record<string, { label: string; color: string }> = {
+  ANTHROPIC: { label: 'Anthropic', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  OPENAI: { label: 'OpenAI', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  GEMINI: { label: 'Gemini', color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+};
+
+function formatTokens(n: unknown): string {
+  const v = Number(n ?? 0);
+  if (v >= 1_000_000) return (v / 1_000_000).toFixed(1) + 'M';
+  if (v >= 1_000) return (v / 1_000).toFixed(1) + 'K';
+  return v.toLocaleString();
+}
+
+function formatCost(n: unknown): string {
+  const v = Number(n ?? 0);
+  if (v === 0) return '$0';
+  if (v < 0.0001) return '<$0.0001';
+  if (v < 0.01) return '$' + v.toFixed(6);
+  return '$' + v.toFixed(4);
+}
+
+function formatDuration(ms: unknown): string {
+  const v = Number(ms ?? 0);
+  if (!v) return '—';
+  if (v < 1000) return v + 'ms';
+  return (v / 1000).toFixed(1) + 's';
+}
+
+function formatTime(val: unknown): string {
+  if (!val) return '—';
+  const d = new Date(String(val));
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+
+  let relative: string;
+  if (diffMin < 1) relative = '刚刚';
+  else if (diffMin < 60) relative = `${diffMin}分钟前`;
+  else if (diffHr < 24) relative = `${diffHr}小时前`;
+  else relative = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+
+  const full = d.toLocaleString('zh-CN', {
+    month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+  return `${full} (${relative})`;
+}
 
 export default function UsagePage() {
   const [logs, setLogs] = useState<UsageLog[]>([]);
@@ -30,34 +79,106 @@ export default function UsagePage() {
     fetchLogs();
   }, [fetchLogs]);
 
+  const stats = useMemo(() => {
+    if (logs.length === 0) return null;
+    const totalTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0), 0);
+    const totalCost = logs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
+    const totalRequests = logs.length;
+    return { totalTokens, totalCost, totalRequests };
+  }, [logs]);
+
   const columns = [
+    {
+      key: 'createdAt',
+      label: '时间',
+      className: 'whitespace-nowrap text-xs text-gray-500 dark:text-dark-400',
+      formatter: (val: unknown) => formatTime(val),
+    },
     {
       key: 'model',
       label: '模型',
+      className: 'whitespace-nowrap text-sm font-medium text-gray-800 dark:text-dark-200',
+      formatter: (val: unknown) => {
+        const s = String(val ?? '—');
+        // show shorter model name
+        return s.length > 28 ? s.slice(0, 26) + '…' : s;
+      },
     },
     {
       key: 'platform',
       label: '平台',
+      className: 'whitespace-nowrap',
+      formatter: (val: unknown) => {
+        const p = String(val ?? '');
+        const cfg = platformConfig[p];
+        return (
+          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${cfg?.color || 'bg-gray-100 text-gray-600 dark:bg-dark-800 dark:text-dark-400'}`}>
+            {cfg?.label || p || '—'}
+          </span>
+        );
+      },
+    },
+    {
+      key: 'groupId',
+      label: '分组',
+      className: 'whitespace-nowrap text-center',
+      formatter: (val: unknown) => {
+        const v = val as number;
+        return v ? <span className="text-sm text-gray-600 dark:text-dark-300">{v}</span> : <span className="text-gray-300 dark:text-dark-600">—</span>;
+      },
     },
     {
       key: 'inputTokens',
-      label: '输入 Tokens',
-      formatter: (val: unknown) => Number(val ?? 0).toLocaleString(),
+      label: '提示',
+      className: 'whitespace-nowrap text-right tabular-nums',
+      formatter: (val: unknown) => (
+        <span className="text-sm text-violet-600 dark:text-violet-400">{formatTokens(val)}</span>
+      ),
     },
     {
       key: 'outputTokens',
-      label: '输出 Tokens',
-      formatter: (val: unknown) => Number(val ?? 0).toLocaleString(),
+      label: '补全',
+      className: 'whitespace-nowrap text-right tabular-nums',
+      formatter: (val: unknown) => (
+        <span className="text-sm text-indigo-600 dark:text-indigo-400">{formatTokens(val)}</span>
+      ),
+    },
+    {
+      key: 'tokens',
+      label: '令牌',
+      className: 'whitespace-nowrap text-right tabular-nums font-medium',
+      formatter: (_: unknown, row: UsageLog) => {
+        const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0);
+        return <span className="text-sm text-gray-700 dark:text-dark-200">{formatTokens(total)}</span>;
+      },
+    },
+    {
+      key: 'duration',
+      label: '用时 / 首字',
+      className: 'whitespace-nowrap text-center text-xs',
+      formatter: (_: unknown, row: UsageLog) => {
+        const dur = formatDuration(row.durationMs);
+        const ttft = formatDuration(row.firstTokenMs);
+        return (
+          <span className="text-gray-500 dark:text-dark-400">
+            {dur}<span className="mx-1 text-gray-300 dark:text-dark-600">/</span>{ttft}
+          </span>
+        );
+      },
     },
     {
       key: 'totalCost',
-      label: '费用',
-      formatter: (val: unknown) => `$${Number(val ?? 0).toFixed(6)}`,
+      label: '花费',
+      className: 'whitespace-nowrap text-right tabular-nums',
+      formatter: (val: unknown) => (
+        <span className="text-sm font-medium text-rose-600 dark:text-rose-400">{formatCost(val)}</span>
+      ),
     },
     {
-      key: 'createdAt',
-      label: '时间',
-      formatter: (val: unknown) => (val ? new Date(String(val)).toLocaleString('zh-CN') : '—'),
+      key: 'ipAddress',
+      label: 'IP',
+      className: 'whitespace-nowrap text-xs text-gray-400 dark:text-dark-500 font-mono',
+      formatter: (val: unknown) => String(val ?? '—'),
     },
   ];
 
@@ -65,36 +186,90 @@ export default function UsagePage() {
 
   return (
     <div>
-      <PageHeader title="用量统计" description="查看您的 API 调用历史和用量" />
+      <PageHeader title="用量统计" description="查看您的 API 调用历史与用量明细" />
 
-      <div className="card">
-        <DataTable columns={columns} data={logs} loading={loading} />
-
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-dark-700">
-            <span className="text-sm text-gray-500 dark:text-dark-400">
-              共 {total} 条记录，第 {page + 1}/{totalPages} 页
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                className="btn btn-secondary btn-sm"
-                disabled={page === 0}
-                onClick={() => setPage(page - 1)}
-              >
-                <Icon name="chevronLeft" size="sm" />
-                上一页
-              </button>
-              <button
-                className="btn btn-secondary btn-sm"
-                disabled={page >= totalPages - 1}
-                onClick={() => setPage(page + 1)}
-              >
-                下一页
-                <Icon name="chevronRight" size="sm" />
-              </button>
+      {/* Summary Cards */}
+      {stats && (
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          <div className="card flex items-center gap-3 px-5 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
+              <Icon name="sparkles" size="sm" className="text-violet-600 dark:text-violet-400" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 dark:text-dark-400">总令牌</p>
+              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
+                {formatTokens(stats.totalTokens)}
+              </p>
             </div>
           </div>
-        )}
+          <div className="card flex items-center gap-3 px-5 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/30">
+              <Icon name="dollar" size="sm" className="text-rose-600 dark:text-rose-400" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 dark:text-dark-400">总花费</p>
+              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
+                {formatCost(stats.totalCost)}
+              </p>
+            </div>
+          </div>
+          <div className="card flex items-center gap-3 px-5 py-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
+              <Icon name="chartBar" size="sm" className="text-blue-600 dark:text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs text-gray-400 dark:text-dark-400">请求次数</p>
+              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
+                {stats.totalRequests.toLocaleString()}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <div className="card">
+        <DataTable
+          columns={columns}
+          data={logs}
+          loading={loading}
+          emptyState={
+            <div className="flex flex-col items-center gap-3 py-16">
+              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
+                <Icon name="chart" size="xl" className="text-gray-300 dark:text-dark-600" />
+              </div>
+              <div className="text-center">
+                <p className="text-sm font-medium text-gray-500 dark:text-dark-400">暂无使用记录</p>
+                <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
+                  发起 API 调用后将在此处显示用量明细
+                </p>
+              </div>
+            </div>
+          }
+        />
+
+        <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-dark-700">
+          <span className="text-sm text-gray-500 dark:text-dark-400">
+            共 {total.toLocaleString()} 条记录，第 {page + 1}/{totalPages || 1} 页
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={page === 0}
+              onClick={() => setPage(page - 1)}
+            >
+              <Icon name="chevronLeft" size="sm" />
+              上一页
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              disabled={page >= totalPages - 1}
+              onClick={() => setPage(page + 1)}
+            >
+              下一页
+              <Icon name="chevronRight" size="sm" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
