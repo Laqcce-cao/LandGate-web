@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { paymentsApi, type PaymentOrder } from '../api/admin/payments';
-import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Badge } from '../components/ui/Badge';
-import { Icon } from '../components/ui/Icon';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToastStore } from '../stores/toastStore';
 
 export default function PaymentDetailPage() {
   const { orderId } = useParams<{ orderId: string }>();
-  const navigate = useNavigate();
   const [order, setOrder] = useState<PaymentOrder | null>(null);
   const [loading, setLoading] = useState(true);
   const addToast = useToastStore((s) => s.addToast);

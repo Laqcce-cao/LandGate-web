@@ -16,24 +16,25 @@ export default function VerifyEmailPage() {
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [cooldown, setCooldown] = useState(0);
-  const timerRef = useRef<ReturnType<typeof setInterval>>();
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const navigate = useNavigate();
 
   const startCooldown = useCallback(() => {
     setCooldown(RESEND_COOLDOWN);
-    timerRef.current = setInterval(() => {
+    const id = setInterval(() => {
       setCooldown((prev) => {
         if (prev <= 1) {
-          clearInterval(timerRef.current);
+          clearInterval(id);
           return 0;
         }
         return prev - 1;
       });
     }, 1000);
+    timerRef.current = id;
   }, []);
 
   useEffect(() => {
-    return () => clearInterval(timerRef.current);
+    return () => clearInterval(timerRef.current ?? undefined);
   }, []);
 
   useEffect(() => {

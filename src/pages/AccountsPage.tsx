@@ -102,20 +102,6 @@ export default function AccountsPage() {
     fetchAccounts().finally(() => setLoading(false));
   }, [fetchAccounts]);
 
-  const openCreate = () => {
-    setEditTarget(null);
-    setName('');
-    setPlatform('openai');
-    setType('api_key');
-    setStatusForm('ACTIVE');
-    setCredValues(buildEmptyCredValues('api_key'));
-    setExtraBaseUrl('');
-    setConcurrency(3);
-    setPriority(50);
-    setRateMultiplier('1.0');
-    setModalOpen(true);
-  };
-
   const openEdit = (account: Account) => {
     setEditTarget(account);
     setName(account.name);

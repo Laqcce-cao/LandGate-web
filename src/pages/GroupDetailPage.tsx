@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 import { groupsApi, type AccountGroup, type UserAllowedGroup } from '../api/admin/groups';
 import { accountsApi, type Account } from '../api/admin/accounts';
 import { Button } from '../components/ui/Button';
@@ -15,10 +15,8 @@ import { useToastStore } from '../stores/toastStore';
 
 export default function GroupDetailPage() {
   const { groupId } = useParams<{ groupId: string }>();
-  const navigate = useNavigate();
   const id = Number(groupId);
 
-  const [groupName, setGroupName] = useState('');
   const [activeTab, setActiveTab] = useState('accounts');
   const [accounts, setAccounts] = useState<AccountGroup[]>([]);
   const [users, setUsers] = useState<UserAllowedGroup[]>([]);
@@ -47,13 +45,12 @@ export default function GroupDetailPage() {
 
   const fetchData = useCallback(async () => {
     try {
-      const [groupRes, accountsRes, usersRes, allAccountsRes] = await Promise.all([
+      const [, accountsRes, usersRes, allAccountsRes] = await Promise.all([
         groupsApi.getById(id),
         groupsApi.listAccounts(id),
         groupsApi.listUsers(id),
         accountsApi.list(),
       ]);
-      setGroupName(groupRes.data.name ?? `Group #${id}`);
       setAccounts(accountsRes.data.accounts ?? []);
       setUsers(usersRes.data.users ?? []);
       setAllAccounts(allAccountsRes.data.accounts ?? []);

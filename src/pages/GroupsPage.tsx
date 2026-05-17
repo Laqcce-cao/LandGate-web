@@ -251,7 +251,7 @@ export default function GroupsPage() {
       addToast({ type: 'success', message: `已排除模型: ${trimmed}` });
     } catch {
       setGroups((prev) =>
-        prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: g.excludedModels ?? null } : grp)),
+        prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: g.excludedModels ?? undefined } : grp)),
       );
       addToast({ type: 'error', message: '操作失败' });
     }
@@ -271,7 +271,7 @@ export default function GroupsPage() {
       addToast({ type: 'success', message: `已移除排除: ${model}` });
     } catch {
       setGroups((prev) =>
-        prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: g.excludedModels ?? null } : grp)),
+        prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: g.excludedModels ?? undefined } : grp)),
       );
       addToast({ type: 'error', message: '操作失败' });
     }
