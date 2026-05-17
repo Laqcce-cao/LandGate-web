@@ -46,6 +46,15 @@ function AuthGuard() {
 function AdminGuard() {
   const isAdmin = useAuthStore((s) => s.isAdmin);
   const token = useAuthStore((s) => s.token);
+  const isAuthenticating = useAuthStore((s) => s.isAuthenticating);
+
+  if (isAuthenticating) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F8FAFC] dark:bg-dark-950">
+        <div className="animate-spin h-10 w-10 rounded-full border-2 border-violet-500 border-t-transparent" />
+      </div>
+    );
+  }
 
   if (!token) return <Navigate to="/login" replace />;
   if (!isAdmin) return <Navigate to="/dashboard" replace />;
