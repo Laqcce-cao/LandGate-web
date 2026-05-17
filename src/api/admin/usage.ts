@@ -43,6 +43,8 @@ export interface UsageListResponse {
 export const usageApi = {
   list: (page = 0, size = 20) =>
     client.get<UsageListResponse>('/admin/usage', { params: { page, size } }),
+  myUsage: (page = 0, size = 20) =>
+    client.get<UsageListResponse>('/user/usage/my', { params: { page, size } }),
   byUser: (userId: number, page = 0, size = 20) =>
     client.get<UsageListResponse>(`/admin/usage/user/${userId}`, { params: { page, size } }),
   byApiKey: (apiKeyId: number, page = 0, size = 20) =>

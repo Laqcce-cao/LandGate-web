@@ -10,6 +10,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [needsVerification, setNeedsVerification] = useState(false);
   const login = useAuthStore((s) => s.login);
   const loading = useAuthStore((s) => s.loading);
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function LoginPage() {
     e.preventDefault();
     setLoginError('');
     setEmailError('');
+    setNeedsVerification(false);
 
     if (!email.trim()) {
       setEmailError('请输入邮箱');
@@ -27,8 +29,14 @@ export default function LoginPage() {
     try {
       const redirectTo = await login(email, password);
       navigate(redirectTo);
-    } catch {
-      setLoginError('邮箱或密码错误');
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message;
+      if (msg && /verify.*email|email.*verif/i.test(msg)) {
+        setNeedsVerification(true);
+      } else {
+        setLoginError('邮箱或密码错误');
+      }
     }
   };
 
@@ -38,6 +46,19 @@ export default function LoginPage() {
         {loginError && (
           <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-600 dark:border-red-800 dark:bg-red-900/20 dark:text-red-400">
             {loginError}
+          </div>
+        )}
+
+        {needsVerification && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-400">
+            邮箱尚未验证，请检查收件箱中的验证邮件。
+            <br />
+            <Link
+              to={`/verify-email?email=${encodeURIComponent(email)}`}
+              className="font-medium text-violet-600 hover:text-violet-700 underline"
+            >
+              前往验证邮箱 →
+            </Link>
           </div>
         )}
 

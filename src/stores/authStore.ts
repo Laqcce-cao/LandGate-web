@@ -13,7 +13,7 @@ interface AuthState {
   isAuthenticating: boolean;
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<string>;
-  register: (email: string, password: string) => Promise<string>;
+  register: (email: string, password: string, captchaToken: string, username?: string) => Promise<string>;
   logout: () => void;
   fetchUser: () => Promise<void>;
   initialize: () => Promise<void>;
@@ -71,19 +71,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
   },
 
-  register: async (email: string, password: string) => {
+  register: async (email: string, password: string, captchaToken: string, username?: string) => {
     set({ loading: true });
     try {
-      const { data } = await authApi.register({ email, password });
-      localStorage.setItem('access_token', data.access_token);
-      localStorage.setItem('refresh_token', data.refresh_token);
-      const isAdmin = isAdminRole(data.user.role);
-      set({
-        user: data.user,
-        token: data.access_token,
-        isAdmin,
-      });
-      return isAdmin ? '/admin/dashboard' : '/dashboard';
+      await authApi.register({ email, password, captchaToken, username });
+      // 注册成功后不再直接签发 token —— 需要先验证邮箱
+      return email;
     } finally {
       set({ loading: false });
     }

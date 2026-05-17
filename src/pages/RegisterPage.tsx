@@ -4,8 +4,11 @@ import { useAuthStore } from '../stores/authStore';
 import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 
+const requiredMark = <span className="text-red-500 ml-0.5">*</span>;
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -28,8 +31,8 @@ export default function RegisterPage() {
       return;
     }
 
-    if (password.length < 6) {
-      setError('密码长度至少为 6 位');
+    if (password.length < 8) {
+      setError('密码长度至少为 8 位');
       return;
     }
 
@@ -39,8 +42,13 @@ export default function RegisterPage() {
     }
 
     try {
-      const redirectTo = await register(email, password);
-      navigate(redirectTo);
+      const registeredEmail = await register(
+        email,
+        password,
+        'captcha_disabled',
+        username.trim() || undefined,
+      );
+      navigate(`/verify-email?email=${encodeURIComponent(registeredEmail)}`);
     } catch {
       setError('注册失败，请稍后重试');
     }
@@ -56,7 +64,9 @@ export default function RegisterPage() {
         )}
 
         <div>
-          <label className="input-label">邮箱</label>
+          <label className="input-label">
+            邮箱{requiredMark}
+          </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
               <Icon name="mail" size="sm" />
@@ -73,7 +83,28 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="input-label">密码</label>
+          <label className="input-label">
+            昵称 <span className="text-slate-400 font-normal text-xs">(选填)</span>
+          </label>
+          <div className="relative">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
+              <Icon name="user" size="sm" />
+            </div>
+            <input
+              type="text"
+              className="input pl-10"
+              placeholder="自定义昵称，默认为邮箱前缀"
+              maxLength={100}
+              value={username}
+              onChange={(e) => { setUsername(e.target.value); setError(''); }}
+            />
+          </div>
+        </div>
+
+        <div>
+          <label className="input-label">
+            密码{requiredMark}
+          </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
               <Icon name="lock" size="sm" />
@@ -81,7 +112,7 @@ export default function RegisterPage() {
             <input
               type={showPassword ? 'text' : 'password'}
               className="input pl-10 pr-10"
-              placeholder="请输入密码（至少6位）"
+              placeholder="请输入密码（至少8位）"
               value={password}
               onChange={(e) => { setPassword(e.target.value); setError(''); }}
             />
@@ -96,7 +127,9 @@ export default function RegisterPage() {
         </div>
 
         <div>
-          <label className="input-label">确认密码</label>
+          <label className="input-label">
+            确认密码{requiredMark}
+          </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
               <Icon name="lock" size="sm" />

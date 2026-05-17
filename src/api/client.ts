@@ -14,10 +14,14 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
+const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/verify-email', '/auth/resend-verification-code'];
+
 client.interceptors.response.use(
   (res) => res,
   async (err) => {
-    if (err.response?.status === 401 && !err.config._retry) {
+    const isAuthEndpoint = AUTH_ENDPOINTS.some((ep) => err.config?.url?.includes(ep));
+
+    if (err.response?.status === 401 && !err.config._retry && !isAuthEndpoint) {
       err.config._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
       if (refreshToken) {

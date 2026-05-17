@@ -16,7 +16,7 @@ export default function UsagePage() {
     setLoading(true);
     try {
       const size = 20;
-      const res = await usageApi.list(page, size);
+      const res = await usageApi.myUsage(page, size);
       setLogs(res.data.logs ?? []);
       setTotal(res.data.total ?? 0);
     } catch {
