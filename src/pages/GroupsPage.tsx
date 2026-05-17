@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { groupsApi, type Group } from '../api/admin/groups';
-import { modelPricesApi, type ModelPrice } from '../api/admin/model-prices';
 import { accountsApi, type Account } from '../api/admin/accounts';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -33,17 +32,11 @@ const platformBadge: Record<string, string> = {
   antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
-type EditTarget =
-  | { type: 'group'; group: Group }
-  | { type: 'price'; price: ModelPrice; groupId: number | null }
-  | { type: 'price-create'; groupId: number | null };
-
 export default function GroupsPage() {
   const addToast = useToastStore((s) => s.addToast);
 
   /* ─── data ─── */
   const [groups, setGroups] = useState<Group[]>([]);
-  const [prices, setPrices] = useState<ModelPrice[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   // accountId -> set of groupIds
   const [bindings, setBindings] = useState<Map<number, Set<number>>>(new Map());
@@ -67,15 +60,14 @@ export default function GroupsPage() {
   const [editTarget, setEditTarget] = useState<Group | null>(null); // null = create
   const [saving, setSaving] = useState(false);
 
-  const [priceModal, setPriceModal] = useState(false);
-  const [priceEdit, setPriceEdit] = useState<EditTarget | null>(null);
-  const [priceSaving, setPriceSaving] = useState(false);
-
   const [bindModal, setBindModal] = useState(false);
   const [bindGroupId, setBindGroupId] = useState<number | null>(null);
   const [bindAccountId, setBindAccountId] = useState('');
   const [bindPriority, setBindPriority] = useState('50');
   const [binding, setBinding] = useState(false);
+
+  /* ─── exclude model input per group ─── */
+  const [excludeInputs, setExcludeInputs] = useState<Record<number, string>>({});
 
   /* ─── group form ─── */
   const [gfName, setGfName] = useState('');
@@ -86,26 +78,14 @@ export default function GroupsPage() {
   const [gfRpm, setGfRpm] = useState(0);
   const [gfValidity, setGfValidity] = useState(30);
 
-  /* ─── price form ─── */
-  const [pfModel, setPfModel] = useState('');
-  const [pfPlatform, setPfPlatform] = useState('anthropic');
-  const [pfInput, setPfInput] = useState('0');
-  const [pfOutput, setPfOutput] = useState('0');
-  const [pfCacheWrite, setPfCacheWrite] = useState('0');
-  const [pfCacheRead, setPfCacheRead] = useState('0');
-  const [pfEnabled, setPfEnabled] = useState(true);
-  const [pfNotes, setPfNotes] = useState('');
-
   /* ─── fetch ─── */
   const fetchAll = useCallback(async () => {
     try {
-      const [grpRes, priceRes, accRes] = await Promise.all([
+      const [grpRes, accRes] = await Promise.all([
         groupsApi.list(),
-        modelPricesApi.list(0, 500),
         accountsApi.list(),
       ]);
       const grps = grpRes.data.groups ?? [];
-      const prcs = priceRes.data.prices ?? [];
       const accs = accRes.data.accounts ?? [];
 
       // fetch bindings per group
@@ -124,7 +104,6 @@ export default function GroupsPage() {
       );
 
       setGroups(grps);
-      setPrices(prcs);
       setAccounts(accs);
       setBindings(map);
     } catch {
@@ -137,21 +116,6 @@ export default function GroupsPage() {
   }, [fetchAll]);
 
   /* ─── derive ─── */
-  const accountMap = useMemo(() => new Map(accounts.map((a) => [a.id, a])), [accounts]);
-
-  const pricesByGroup = useMemo(() => {
-    const map = new Map<number | null, ModelPrice[]>();
-    map.set(null, []);
-    for (const p of prices) {
-      const key = p.groupId ?? null;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(p);
-    }
-    return map;
-  }, [prices]);
-
-  const globalPrices = pricesByGroup.get(null) ?? [];
-
   const accountsOfGroup = useCallback(
     (groupId: number) =>
       accounts.filter((a) => bindings.get(a.id)?.has(groupId)),
@@ -224,77 +188,6 @@ export default function GroupsPage() {
     }
   };
 
-  /* ─── price CRUD ─── */
-  const openCreatePrice = (groupId: number | null) => {
-    setPriceEdit({ type: 'price-create', groupId });
-    setPfModel('');
-    setPfPlatform('anthropic');
-    setPfInput('0');
-    setPfOutput('0');
-    setPfCacheWrite('0');
-    setPfCacheRead('0');
-    setPfEnabled(true);
-    setPfNotes('');
-    setPriceModal(true);
-  };
-
-  const openEditPrice = (price: ModelPrice) => {
-    setPriceEdit({ type: 'price', price, groupId: price.groupId ?? null });
-    setPfModel(price.model);
-    setPfPlatform(price.platform);
-    setPfInput(String(price.inputPrice ?? 0));
-    setPfOutput(String(price.outputPrice ?? 0));
-    setPfCacheWrite(String(price.cacheWritePrice ?? 0));
-    setPfCacheRead(String(price.cacheReadPrice ?? 0));
-    setPfEnabled(price.enabled ?? true);
-    setPfNotes(price.notes ?? '');
-    setPriceModal(true);
-  };
-
-  const savePrice = async () => {
-    if (!pfModel.trim()) return;
-    if (!priceEdit) return;
-    setPriceSaving(true);
-    const payload: Partial<ModelPrice> = {
-      model: pfModel.trim(),
-      platform: pfPlatform,
-      inputPrice: Number(pfInput) || 0,
-      outputPrice: Number(pfOutput) || 0,
-      cacheWritePrice: Number(pfCacheWrite) || 0,
-      cacheReadPrice: Number(pfCacheRead) || 0,
-      enabled: pfEnabled,
-      notes: pfNotes || undefined,
-    };
-    if (priceEdit.type === 'price-create') {
-      payload.groupId = priceEdit.groupId;
-    }
-    try {
-      if (priceEdit.type === 'price') {
-        await modelPricesApi.update(priceEdit.price.id, payload);
-        addToast({ type: 'success', message: '价格已更新' });
-      } else {
-        await modelPricesApi.create(payload);
-        addToast({ type: 'success', message: '价格已创建' });
-      }
-      setPriceModal(false);
-      fetchAll();
-    } catch {
-      addToast({ type: 'error', message: '保存失败' });
-    } finally {
-      setPriceSaving(false);
-    }
-  };
-
-  const deletePrice = async (p: ModelPrice) => {
-    try {
-      await modelPricesApi.delete(p.id);
-      addToast({ type: 'success', message: '价格已删除' });
-      fetchAll();
-    } catch {
-      addToast({ type: 'error', message: '删除失败' });
-    }
-  };
-
   /* ─── account bind ─── */
   const openBind = (groupId: number) => {
     setBindGroupId(groupId);
@@ -329,6 +222,61 @@ export default function GroupsPage() {
     }
   };
 
+  /* ─── excluded models ─── */
+  const parseExcludedModels = (g: Group): string[] => {
+    try {
+      if (!g.excludedModels) return [];
+      const arr = JSON.parse(g.excludedModels);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const addExcludedModel = async (groupId: number, model: string) => {
+    const trimmed = model.trim();
+    if (!trimmed) return;
+    const g = groups.find((grp) => grp.id === groupId);
+    if (!g) return;
+    const current = parseExcludedModels(g);
+    if (current.includes(trimmed)) return;
+    const updated = JSON.stringify([...current, trimmed]);
+    // optimistic update
+    setGroups((prev) =>
+      prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: updated } : grp)),
+    );
+    setExcludeInputs((prev) => ({ ...prev, [groupId]: '' }));
+    try {
+      await groupsApi.update(groupId, { excludedModels: updated });
+      addToast({ type: 'success', message: `已排除模型: ${trimmed}` });
+    } catch {
+      setGroups((prev) =>
+        prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: g.excludedModels ?? null } : grp)),
+      );
+      addToast({ type: 'error', message: '操作失败' });
+    }
+  };
+
+  const removeExcludedModel = async (groupId: number, model: string) => {
+    const g = groups.find((grp) => grp.id === groupId);
+    if (!g) return;
+    const current = parseExcludedModels(g);
+    const updated = JSON.stringify(current.filter((m) => m !== model));
+    // optimistic update
+    setGroups((prev) =>
+      prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: updated } : grp)),
+    );
+    try {
+      await groupsApi.update(groupId, { excludedModels: updated });
+      addToast({ type: 'success', message: `已移除排除: ${model}` });
+    } catch {
+      setGroups((prev) =>
+        prev.map((grp) => (grp.id === groupId ? { ...grp, excludedModels: g.excludedModels ?? null } : grp)),
+      );
+      addToast({ type: 'error', message: '操作失败' });
+    }
+  };
+
   /* ─── render ─── */
   if (loading) {
     return (
@@ -343,7 +291,7 @@ export default function GroupsPage() {
       {/* header */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-dark-400">
-          共 {groups.length} 个分组 · {prices.length} 个价格 · {accounts.length} 个上游账号
+          共 {groups.length} 个分组 · {accounts.length} 个号池账号
         </p>
         <Button onClick={openCreateGroup}>
           <Icon name="plus" size="sm" /> 新建分组
@@ -354,9 +302,7 @@ export default function GroupsPage() {
       <div className="space-y-2">
         {groups.map((g) => {
           const open = expanded.has(g.id);
-          const gPrices = pricesByGroup.get(g.id) ?? [];
           const gAccounts = accountsOfGroup(g.id);
-          const allPrices = [...globalPrices, ...gPrices];
 
           return (
             <div key={g.id} className="card overflow-hidden">
@@ -381,7 +327,7 @@ export default function GroupsPage() {
                   倍率 ×{g.rateMultiplier ?? 1}
                 </span>
                 <span className="text-xs text-gray-400 dark:text-dark-500">
-                  {gPrices.length + globalPrices.length} 价格 · {gAccounts.length} 账号
+                  {gAccounts.length} 个号池
                 </span>
                 <StatusBadge status={g.status ?? 'ACTIVE'} />
                 <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -397,71 +343,12 @@ export default function GroupsPage() {
               {/* ── group children ── */}
               {open && (
                 <div className="border-t border-gray-100 dark:border-dark-700">
-                  {/* ---- model prices ---- */}
-                  <div className="px-5 py-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                        💰 模型价格
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={() => openCreatePrice(g.id)}>
-                        <Icon name="plus" size="xs" /> 添加
-                      </Button>
-                    </div>
-                    {allPrices.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
-                        暂无 — 点击"添加"或从全局继承
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {allPrices.map((p) => (
-                          <div
-                            key={p.id}
-                            className={`flex items-center gap-3 rounded-lg px-3 py-2 text-sm ${
-                              p.groupId === g.id
-                                ? 'bg-gray-50 dark:bg-dark-800'
-                                : 'bg-gray-50/30 dark:bg-dark-800/30'
-                            }`}
-                          >
-                            <span className="font-medium text-gray-800 dark:text-dark-200 min-w-0 truncate flex-1">
-                              {p.model}
-                              {p.groupId !== g.id && (
-                                <span className="ml-1.5 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                                  全局
-                                </span>
-                              )}
-                            </span>
-                            <span className="text-xs text-gray-400 dark:text-dark-500 w-20 text-right tabular-nums">
-                              in ${Number(p.inputPrice ?? 0).toFixed(2)}
-                            </span>
-                            <span className="text-xs text-gray-400 dark:text-dark-500 w-20 text-right tabular-nums">
-                              out ${Number(p.outputPrice ?? 0).toFixed(2)}
-                            </span>
-                            {p.enabled === false && (
-                              <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600">禁用</span>
-                            )}
-                            {p.groupId === g.id && (
-                              <div className="flex items-center gap-1 shrink-0">
-                                <Button variant="ghost" size="sm" onClick={() => openEditPrice(p)}>
-                                  <Icon name="edit" size="xs" />
-                                </Button>
-                                <Button variant="ghost" size="sm" onClick={() => deletePrice(p)}>
-                                  <Icon name="trash" size="xs" className="text-red-500" />
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mx-5 border-t border-gray-100 dark:border-dark-700" />
 
                   {/* ---- accounts ---- */}
                   <div className="px-5 py-3">
                     <div className="mb-2 flex items-center justify-between">
                       <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                        🖥 上游账号
+                        🖥 号池
                       </span>
                       <Button variant="ghost" size="sm" onClick={() => openBind(g.id)}>
                         <Icon name="plus" size="xs" /> 绑定
@@ -469,7 +356,7 @@ export default function GroupsPage() {
                     </div>
                     {gAccounts.length === 0 ? (
                       <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
-                        暂无 — 点击"绑定"关联上游账号
+                        暂无 — 点击"绑定"关联账号
                       </p>
                     ) : (
                       <div className="space-y-1">
@@ -492,6 +379,69 @@ export default function GroupsPage() {
                         ))}
                       </div>
                     )}
+                  </div>
+
+                  <div className="mx-5 border-t border-gray-100 dark:border-dark-700" />
+
+                  {/* ---- excluded models ---- */}
+                  <div className="px-5 py-3">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                        🚫 排除模型
+                      </span>
+                    </div>
+                    {(() => {
+                      const excludedModels = parseExcludedModels(g);
+                      return (
+                        <>
+                          {excludedModels.length === 0 ? (
+                            <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
+                              暂无 — 添加模型名以禁止该分组使用
+                            </p>
+                          ) : (
+                            <div className="mb-2 space-y-1">
+                              {excludedModels.map((m) => (
+                                <div
+                                  key={m}
+                                  className="flex items-center gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm dark:bg-red-900/10"
+                                >
+                                  <span className="font-medium text-red-700 dark:text-red-400 min-w-0 truncate flex-1">
+                                    {m}
+                                  </span>
+                                  <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-400">
+                                    已排除
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeExcludedModel(g.id, m)}
+                                  >
+                                    <Icon name="x" size="xs" className="text-red-400" />
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="输入模型名，如 claude-opus-4"
+                              value={excludeInputs[g.id] ?? ''}
+                              onChange={(e) =>
+                                setExcludeInputs((prev) => ({ ...prev, [g.id]: e.target.value }))
+                              }
+                              className="flex-1"
+                            />
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              onClick={() => addExcludedModel(g.id, excludeInputs[g.id] ?? '')}
+                            >
+                              <Icon name="plus" size="xs" /> 排除
+                            </Button>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -541,50 +491,11 @@ export default function GroupsPage() {
         </div>
       </Modal>
 
-      {/* ═══ Price Create/Edit Modal ═══ */}
-      <Modal
-        open={priceModal}
-        onClose={() => setPriceModal(false)}
-        title={priceEdit?.type === 'price' ? '编辑模型价格' : '添加模型价格'}
-        width="normal"
-        footer={
-          <div className="flex justify-end gap-3">
-            <Button variant="secondary" onClick={() => setPriceModal(false)}>取消</Button>
-            <Button onClick={savePrice} loading={priceSaving}>保存</Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          <Input label="模型标识" value={pfModel} onChange={(e) => setPfModel(e.target.value)} placeholder="例如 claude-sonnet-4-20250514" />
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="input-label">平台</label>
-              <Select options={platformOpts} value={pfPlatform} onChange={setPfPlatform} />
-            </div>
-            <div className="flex items-end">
-              <label className="flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" checked={pfEnabled} onChange={(e) => setPfEnabled(e.target.checked)} className="checkbox" />
-                <span className="text-sm text-gray-600 dark:text-dark-400">启用</span>
-              </label>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="输入价格 ($/M tokens)" type="number" value={pfInput} onChange={(e) => setPfInput(e.target.value)} placeholder="0" />
-            <Input label="输出价格 ($/M tokens)" type="number" value={pfOutput} onChange={(e) => setPfOutput(e.target.value)} placeholder="0" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="Cache 写入 ($/M)" type="number" value={pfCacheWrite} onChange={(e) => setPfCacheWrite(e.target.value)} placeholder="0" />
-            <Input label="Cache 读取 ($/M)" type="number" value={pfCacheRead} onChange={(e) => setPfCacheRead(e.target.value)} placeholder="0" />
-          </div>
-          <Input label="备注" value={pfNotes} onChange={(e) => setPfNotes(e.target.value)} placeholder="可选" />
-        </div>
-      </Modal>
-
       {/* ═══ Bind Account Modal ═══ */}
       <Modal
         open={bindModal}
         onClose={() => setBindModal(false)}
-        title="绑定上游账号"
+        title="绑定账号到号池"
         width="normal"
         footer={
           <div className="flex justify-end gap-3">
@@ -602,7 +513,7 @@ export default function GroupsPage() {
                 .map((a) => ({ value: String(a.id), label: `${a.name} (ID:${a.id} | ${a.platform})` }))}
               value={bindAccountId}
               onChange={setBindAccountId}
-              placeholder="选择要绑定的上游账号..."
+              placeholder="选择要绑定的账号..."
               searchable
               emptyText="暂无可绑定的账号"
             />

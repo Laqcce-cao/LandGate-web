@@ -29,6 +29,7 @@ export interface Group {
   defaultMappedModel?: string;
   messagesDispatchModelConfig?: string;
   rpmLimit?: number;
+  excludedModels?: string;
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;

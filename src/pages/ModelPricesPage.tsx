@@ -190,6 +190,16 @@ export default function ModelPricesPage() {
 
   return (
     <div>
+      {/* header */}
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-gray-500 dark:text-dark-400">
+          共 {prices.length} 个模型价格
+        </p>
+        <Button onClick={openCreate}>
+          <Icon name="plus" size="sm" /> 新增价格
+        </Button>
+      </div>
+
       <div className="card">
         <DataTable columns={columns} data={prices} loading={loading} />
       </div>
