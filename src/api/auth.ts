@@ -55,6 +55,10 @@ export const authApi = {
     client.post<{ message: string }>('/auth/verify-email', { email, code }),
   resendVerificationCode: (email: string) =>
     client.post<{ message: string }>('/auth/resend-verification-code', { email }),
+  updatePassword: (oldPassword: string, newPassword: string) =>
+    client.put<{ message: string }>('/auth/password', { oldPassword, newPassword }),
+  updateUsername: (username: string) =>
+    client.put<{ message: string; username: string }>('/auth/username', { username }),
   me: () => client.get<User>('/auth/me'),
   listApiKeys: () => client.get<ApiKey[]>('/auth/api-keys'),
   createApiKey: (data: { name: string; groupId?: number }) =>

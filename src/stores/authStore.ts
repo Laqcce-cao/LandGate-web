@@ -16,6 +16,7 @@ interface AuthState {
   register: (email: string, password: string, captchaToken: string, username?: string) => Promise<string>;
   logout: () => void;
   fetchUser: () => Promise<void>;
+  updateUsername: (username: string) => Promise<void>;
   initialize: () => Promise<void>;
 }
 
@@ -79,6 +80,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return email;
     } finally {
       set({ loading: false });
+    }
+  },
+
+  updateUsername: async (username: string) => {
+    await authApi.updateUsername(username);
+    const user = get().user;
+    if (user) {
+      set({ user: { ...user, username } });
     }
   },
 
