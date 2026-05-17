@@ -2,7 +2,6 @@ import { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { groupsApi, type AccountGroup, type UserAllowedGroup } from '../api/admin/groups';
 import { accountsApi, type Account } from '../api/admin/accounts';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -189,25 +188,6 @@ export default function GroupDetailPage() {
 
   return (
     <div>
-      <PageHeader
-        title={groupName}
-        description={`分组 ID: ${id}`}
-        actions={
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" onClick={() => navigate('/admin/groups')}>
-              <Icon name="chevronLeft" size="sm" />
-              返回
-            </Button>
-            <Button
-              onClick={() => activeTab === 'accounts' ? setBindOpen(true) : setAddUserOpen(true)}
-            >
-              <Icon name="plus" size="sm" />
-              {activeTab === 'accounts' ? '绑定账号' : '添加用户'}
-            </Button>
-          </div>
-        }
-      />
-
       <div className="mb-4">
         <Tabs items={tabItems} activeKey={activeTab} onChange={setActiveTab} />
       </div>

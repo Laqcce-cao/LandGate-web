@@ -1,6 +1,5 @@
 import { useState, type FormEvent } from 'react';
 import client from '../api/client';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
@@ -34,8 +33,6 @@ export default function RedeemPage() {
 
   return (
     <div>
-      <PageHeader title="兑换码" description="输入兑换码为账户充值" />
-
       <div className="mx-auto max-w-md">
         <div className="card p-6">
           <form onSubmit={handleSubmit} className="space-y-4">

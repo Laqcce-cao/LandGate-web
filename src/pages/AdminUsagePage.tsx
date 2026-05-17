@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { usageApi, type UsageLog } from '../api/admin/usage';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { DataTable } from '../components/ui/DataTable';
@@ -97,8 +96,6 @@ export default function AdminUsagePage() {
 
   return (
     <div>
-      <PageHeader title="用量计费" description="查看所有 API 调用用量日志" />
-
       {/* Filters */}
       <div className="mb-4 flex flex-wrap items-end gap-3">
         <div className="flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">

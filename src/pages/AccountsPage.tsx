@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { accountsApi, type Account } from '../api/admin/accounts';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -267,17 +266,6 @@ export default function AccountsPage() {
 
   return (
     <div>
-      <PageHeader
-        title="上游账号"
-        description="管理 AI 服务提供商账号"
-        actions={
-          <Button onClick={openCreate}>
-            <Icon name="plus" size="sm" />
-            添加账号
-          </Button>
-        }
-      />
-
       <div className="card">
         <DataTable columns={columns} data={accounts} loading={loading} />
       </div>

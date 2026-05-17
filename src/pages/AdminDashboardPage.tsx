@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { dashboardApi, type DashboardStats, type RevenueSummary } from '../api/admin/dashboard';
 import { paymentsApi, type PaymentOrder } from '../api/admin/payments';
-import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Icon } from '../components/ui/Icon';
@@ -58,11 +57,6 @@ export default function AdminDashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        title="仪表盘"
-        description="系统概览"
-      />
-
       {/* Stat cards */}
       <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard

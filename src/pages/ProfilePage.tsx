@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { useAuthStore } from '../stores/authStore';
 import { authApi } from '../api/auth';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
@@ -88,8 +87,6 @@ export default function ProfilePage() {
 
   return (
     <div className="mx-auto max-w-xl">
-      <PageHeader title="个人中心" description="管理您的账户信息与安全设置" />
-
       {/* User Info Bar */}
       <div className="card mb-4 flex items-center gap-4 p-4">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-emerald-500 text-lg font-bold text-white shadow-md shadow-violet-500/20">

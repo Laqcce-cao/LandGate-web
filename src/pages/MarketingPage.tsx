@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { codesApi, type RedeemCode, type PromoCode } from '../api/admin/codes';
 import { announcementsApi, type Announcement } from '../api/admin/announcements';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -447,8 +446,6 @@ export default function MarketingPage() {
 
   return (
     <div>
-      <PageHeader title="营销管理" description="管理兑换码、优惠码和公告" />
-
       <Tabs items={tabItems} activeKey={activeTab} onChange={(k) => setActiveTab(k as CodeTab)} />
 
       <div className="mt-6">

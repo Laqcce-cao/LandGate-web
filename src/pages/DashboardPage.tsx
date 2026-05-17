@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
-import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { Icon } from '../components/ui/Icon';
 
@@ -12,11 +11,6 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <PageHeader
-        title="仪表盘"
-        description={`欢迎回来，${user?.username ?? user?.email ?? '用户'}`}
-      />
-
       <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
         <StatCard
           title="账户余额"

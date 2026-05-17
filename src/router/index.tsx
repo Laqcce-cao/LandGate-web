@@ -10,7 +10,6 @@ import AdminDashboardPage from '../pages/AdminDashboardPage';
 import ApiKeysPage from '../pages/ApiKeysPage';
 import AccountsPage from '../pages/AccountsPage';
 import GroupsPage from '../pages/GroupsPage';
-import GroupDetailPage from '../pages/GroupDetailPage';
 import PaymentsPage from '../pages/PaymentsPage';
 import PaymentDetailPage from '../pages/PaymentDetailPage';
 import UsagePage from '../pages/UsagePage';
@@ -95,7 +94,6 @@ export default function AppRouter() {
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
             <Route path="/admin/accounts" element={<AccountsPage />} />
             <Route path="/admin/groups" element={<GroupsPage />} />
-            <Route path="/admin/groups/:groupId" element={<GroupDetailPage />} />
             <Route path="/admin/payments" element={<PaymentsPage />} />
             <Route path="/admin/payments/:orderId" element={<PaymentDetailPage />} />
             <Route path="/admin/usage" element={<AdminUsagePage />} />

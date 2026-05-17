@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { usageApi, type UsageLog } from '../api/admin/usage';
-import { PageHeader } from '../components/ui/PageHeader';
 import { DataTable } from '../components/ui/DataTable';
 import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
@@ -186,8 +185,6 @@ export default function UsagePage() {
 
   return (
     <div>
-      <PageHeader title="用量统计" description="查看您的 API 调用历史与用量明细" />
-
       {/* Summary Cards */}
       {stats && (
         <div className="mb-4 grid grid-cols-3 gap-3">

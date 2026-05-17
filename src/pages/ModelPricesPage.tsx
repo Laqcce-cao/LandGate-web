@@ -1,6 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
 import { modelPricesApi, type ModelPrice } from '../api/admin/model-prices';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -191,17 +190,6 @@ export default function ModelPricesPage() {
 
   return (
     <div>
-      <PageHeader
-        title="模型价格"
-        description="管理各模型的计费单价，支持全局价格和分组覆盖"
-        actions={
-          <Button onClick={openCreate}>
-            <Icon name="plus" size="sm" />
-            新增价格
-          </Button>
-        }
-      />
-
       <div className="card">
         <DataTable columns={columns} data={prices} loading={loading} />
       </div>

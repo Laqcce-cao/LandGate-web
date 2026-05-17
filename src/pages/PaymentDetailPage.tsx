@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { paymentsApi, type PaymentOrder } from '../api/admin/payments';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { Badge } from '../components/ui/Badge';
@@ -56,17 +55,6 @@ export default function PaymentDetailPage() {
 
   return (
     <div>
-      <PageHeader
-        title={`订单 #${order.id}`}
-        description="订单详情"
-        actions={
-          <Button variant="secondary" onClick={() => navigate('/payments')}>
-            <Icon name="chevronLeft" size="sm" />
-            返回
-          </Button>
-        }
-      />
-
       <div className="card overflow-hidden">
         <div className="card-header flex items-center justify-between">
           <h3 className="text-sm font-medium text-gray-900 dark:text-white">基本信息</h3>

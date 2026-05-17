@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { paymentsApi, type PaymentOrder } from '../api/admin/payments';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -144,8 +143,6 @@ export default function PaymentsPage() {
 
   return (
     <div>
-      <PageHeader title="支付管理" description="管理支付订单" />
-
       {/* Status filter tabs */}
       <div className="mb-4 flex flex-wrap gap-2">
         {statusTabs.map((tab) => (

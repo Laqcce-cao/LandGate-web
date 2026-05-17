@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { authApi, type ApiKey } from '../api/auth';
 import { groupsApi, type Group } from '../api/admin/groups';
-import { PageHeader } from '../components/ui/PageHeader';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -133,22 +132,19 @@ export default function ApiKeysPage() {
 
   return (
     <div>
-      <PageHeader
-        title="API Keys"
-        description="管理您的 API 密钥"
-        actions={
-          <Button onClick={async () => {
-            try {
-              const { data } = await groupsApi.list();
-              setGroups(data.groups ?? []);
-            } catch { /* ignore */ }
-            setCreateOpen(true);
-          }}>
-            <Icon name="plus" size="sm" />
-            创建 API Key
-          </Button>
-        }
-      />
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-gray-500 dark:text-dark-400">管理您的 API 密钥</p>
+        <Button onClick={async () => {
+          try {
+            const { data } = await groupsApi.list();
+            setGroups(data.groups ?? []);
+          } catch { /* ignore */ }
+          setCreateOpen(true);
+        }}>
+          <Icon name="plus" size="sm" />
+          创建 API Key
+        </Button>
+      </div>
 
       <div className="card">
         {loading ? (
