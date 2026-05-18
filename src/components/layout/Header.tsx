@@ -10,6 +10,7 @@ const pageTitles: Record<string, string> = {
   '/profile': '个人中心',
   '/admin/dashboard': '仪表盘',
   '/admin/accounts': '上游账号',
+  '/admin/oauth': 'OAuth 授权回调',
   '/admin/groups': '分组管理',
   '/admin/payments': '支付管理',
   '/admin/usage': '用量计费',

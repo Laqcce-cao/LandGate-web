@@ -9,6 +9,7 @@ import DashboardPage from '../pages/DashboardPage';
 import AdminDashboardPage from '../pages/AdminDashboardPage';
 import ApiKeysPage from '../pages/ApiKeysPage';
 import AccountsPage from '../pages/AccountsPage';
+import OAuthCallbackPage from '../pages/OAuthCallbackPage';
 import GroupsPage from '../pages/GroupsPage';
 import PaymentsPage from '../pages/PaymentsPage';
 import PaymentDetailPage from '../pages/PaymentDetailPage';
@@ -102,6 +103,7 @@ export default function AppRouter() {
           <Route element={<AppLayout />}>
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
             <Route path="/admin/accounts" element={<AccountsPage />} />
+            <Route path="/admin/oauth/callback" element={<OAuthCallbackPage />} />
             <Route path="/admin/groups" element={<GroupsPage />} />
             <Route path="/admin/payments" element={<PaymentsPage />} />
             <Route path="/admin/payments/:orderId" element={<PaymentDetailPage />} />

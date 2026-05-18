@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { accountsApi, type Account } from '../api/admin/accounts';
+import { oauthApi } from '../api/admin/oauth';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -83,10 +84,154 @@ export default function AccountsPage() {
   const [credValues, setCredValues] = useState<Record<string, string>>(buildEmptyCredValues('api_key'));
   const [extraBaseUrl, setExtraBaseUrl] = useState('');
 
+  // ---- OAuth 授权 ----
+  const [oauthModalOpen, setOauthModalOpen] = useState(false);
+  const [oauthPlatform, setOauthPlatform] = useState('anthropic');
+  const [oauthAuthorizing, setOauthAuthorizing] = useState(false);
+  const [oauthAuthUrl, setOauthAuthUrl] = useState('');
+  const [oauthError, setOauthError] = useState('');
+
+  // Device Code Flow (OpenAI)
+  const [oauthDeviceData, setOauthDeviceData] = useState<{
+    deviceAuthId: string;
+    userCode: string;
+    verificationUri: string;
+    expiresIn: number;
+    interval: number;
+  } | null>(null);
+  const [oauthPollStatus, setOauthPollStatus] = useState<string>('PENDING');
+  const [oauthPollCount, setOauthPollCount] = useState(0);
+  const oauthPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // ---- 当类型切换时重置凭证字段 ----
   const handleTypeChange = (newType: string) => {
     setType(newType);
     setCredValues(buildEmptyCredValues(newType));
+  };
+
+  const oauthPopupRef = useRef<Window | null>(null);
+
+  // ---- OAuth 授权流程 ----
+  const clearOAuthPolling = () => {
+    if (oauthPollTimerRef.current) {
+      clearInterval(oauthPollTimerRef.current);
+      oauthPollTimerRef.current = null;
+    }
+  };
+
+  const handleOpenOAuthModal = () => {
+    setOauthPlatform('anthropic');
+    setOauthAuthUrl('');
+    setOauthError('');
+    setOauthDeviceData(null);
+    setOauthPollStatus('PENDING');
+    setOauthPollCount(0);
+    clearOAuthPolling();
+    setOauthModalOpen(true);
+  };
+
+  // Authorization Code Flow (Anthropic)
+  const handleAuthCodeAuthorize = async () => {
+    setOauthAuthorizing(true);
+    setOauthError('');
+    try {
+      const redirectUri = `${window.location.origin}/admin/oauth/callback`;
+      const { data } = await oauthApi.authorize({ platform: oauthPlatform, redirectUri });
+      setOauthAuthUrl(data.authorizeUrl);
+
+      const popup = window.open(data.authorizeUrl, 'oauth-authorize', 'width=800,height=700');
+      if (popup) {
+        oauthPopupRef.current = popup;
+      }
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (err as Error)?.message ??
+        '获取授权 URL 失败';
+      setOauthError(msg);
+    } finally {
+      setOauthAuthorizing(false);
+    }
+  };
+
+  // Device Code Flow (OpenAI)
+  const handleDeviceCodeInitiate = async () => {
+    setOauthAuthorizing(true);
+    setOauthError('');
+    try {
+      const { data } = await oauthApi.initiateDeviceCode({ platform: oauthPlatform });
+      setOauthDeviceData(data);
+      setOauthPollStatus('PENDING');
+      setOauthPollCount(0);
+      startPolling(data.deviceAuthId, data.userCode, data.interval, data.expiresIn);
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (err as Error)?.message ??
+        '获取设备码失败';
+      setOauthError(msg);
+    } finally {
+      setOauthAuthorizing(false);
+    }
+  };
+
+  const startPolling = (deviceAuthId: string, userCode: string, interval: number, expiresIn: number) => {
+    clearOAuthPolling();
+    const maxPolls = Math.ceil(expiresIn / interval);
+    let count = 0;
+
+    oauthPollTimerRef.current = setInterval(async () => {
+      count++;
+      setOauthPollCount(count);
+      try {
+        const { data } = await oauthApi.pollDeviceCode({ deviceAuthId, userCode });
+        if (data.status === 'SUCCESS') {
+          clearOAuthPolling();
+          setOauthPollStatus('SUCCESS');
+          addToast({
+            type: 'success',
+            message: `OAuth 账号 "${data.account?.name ?? '未知'}" 创建成功`,
+          });
+          fetchAccounts();
+          setTimeout(() => setOauthModalOpen(false), 1500);
+        } else if (data.status === 'EXPIRED') {
+          clearOAuthPolling();
+          setOauthPollStatus('EXPIRED');
+          setOauthError('设备码已过期，请重新发起授权');
+        }
+        // PENDING: continue polling
+      } catch {
+        // Poll failed, keep trying until max
+      }
+      if (count >= maxPolls) {
+        clearOAuthPolling();
+        setOauthPollStatus('EXPIRED');
+        setOauthError('授权超时，请重新发起授权');
+      }
+    }, interval * 1000);
+  };
+
+  const handleOAuthAuthorize = () => {
+    if (oauthPlatform === 'openai') {
+      handleDeviceCodeInitiate();
+    } else {
+      handleAuthCodeAuthorize();
+    }
+  };
+
+  // ---- 手动刷新 OAuth Token ----
+  const handleRefreshToken = async (account: Account) => {
+    try {
+      await oauthApi.refreshToken(account.id);
+      addToast({ type: 'success', message: 'Token 已刷新' });
+      fetchAccounts();
+    } catch (err: unknown) {
+      const msg =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        (err as Error)?.message ??
+        '刷新 Token 失败';
+      addToast({ type: 'error', message: msg });
+    }
   };
 
   const fetchAccounts = useCallback(async () => {
@@ -101,6 +246,45 @@ export default function AccountsPage() {
   useEffect(() => {
     fetchAccounts().finally(() => setLoading(false));
   }, [fetchAccounts]);
+
+  // ---- 监听 OAuth 回调窗口的 postMessage ----
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.origin !== window.location.origin) return;
+      if (e.data?.type !== 'OAUTH_CALLBACK_SUCCESS') return;
+      addToast({ type: 'success', message: `OAuth 账号 "${e.data.data?.name ?? '未知'}" 创建成功` });
+      fetchAccounts();
+      oauthPopupRef.current?.close();
+      oauthPopupRef.current = null;
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [fetchAccounts, addToast]);
+
+  // Cleanup polling when modal closes or component unmounts
+  useEffect(() => {
+    if (!oauthModalOpen) {
+      clearOAuthPolling();
+      setOauthDeviceData(null);
+      setOauthPollStatus('PENDING');
+      setOauthPollCount(0);
+    }
+    return () => clearOAuthPolling();
+  }, [oauthModalOpen]);
+
+  const openCreate = () => {
+    setEditTarget(null);
+    setName('');
+    setPlatform('openai');
+    setType('api_key');
+    setStatusForm('ACTIVE');
+    setCredValues(buildEmptyCredValues('api_key'));
+    setExtraBaseUrl('');
+    setConcurrency(3);
+    setPriority(50);
+    setRateMultiplier('1.0');
+    setModalOpen(true);
+  };
 
   const openEdit = (account: Account) => {
     setEditTarget(account);
@@ -224,6 +408,11 @@ export default function AccountsPage() {
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
             <Icon name="edit" size="sm" />
           </Button>
+          {row.type === 'oauth' && (
+            <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(row)} title="刷新 Token">
+              <Icon name="refresh" size="sm" />
+            </Button>
+          )}
           <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
             <Icon name="trash" size="sm" className="text-red-500" />
           </Button>
@@ -252,6 +441,21 @@ export default function AccountsPage() {
 
   return (
     <div>
+      {/* header */}
+      <div className="mb-4 flex items-center justify-between">
+        <p className="text-sm text-gray-500 dark:text-dark-400">
+          共 {accounts.length} 个上游账号
+        </p>
+        <div className="flex items-center gap-2">
+          <Button variant="secondary" onClick={handleOpenOAuthModal}>
+            <Icon name="externalLink" size="sm" /> OAuth 授权
+          </Button>
+          <Button onClick={openCreate}>
+            <Icon name="plus" size="sm" /> 添加账号
+          </Button>
+        </div>
+      </div>
+
       <div className="card">
         <DataTable columns={columns} data={accounts} loading={loading} />
       </div>
@@ -355,6 +559,172 @@ export default function AccountsPage() {
               <p className="text-xs text-gray-400">覆盖默认的 API 上游地址。例如 Anthropic 的 https://api.anthropic.com，留空则走官方默认。</p>
             </div>
           </fieldset>
+        </div>
+      </Modal>
+
+      {/* OAuth Authorization modal */}
+      <Modal
+        open={oauthModalOpen}
+        onClose={() => setOauthModalOpen(false)}
+        title="OAuth 授权"
+        width="normal"
+        footer={(() => {
+          const isAnthropicDone = !!oauthAuthUrl;
+          const isOpenAIStarted = !!oauthDeviceData;
+          const isOpenAIDone = oauthPollStatus === 'SUCCESS' || oauthPollStatus === 'EXPIRED';
+
+          if (!isAnthropicDone && !isOpenAIStarted) {
+            return (
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setOauthModalOpen(false)}>取消</Button>
+                <Button onClick={handleOAuthAuthorize} loading={oauthAuthorizing}>开始授权</Button>
+              </div>
+            );
+          }
+          if (isOpenAIStarted && !isOpenAIDone) {
+            return (
+              <div className="flex justify-end gap-3">
+                <Button variant="secondary" onClick={() => setOauthModalOpen(false)}>取消</Button>
+              </div>
+            );
+          }
+          return (
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setOauthModalOpen(false)}>关闭</Button>
+              {isOpenAIDone && oauthPollStatus === 'EXPIRED' && (
+                <Button onClick={handleDeviceCodeInitiate} loading={oauthAuthorizing}>重新授权</Button>
+              )}
+            </div>
+          );
+        })()}
+      >
+        <div className="space-y-5">
+          {/* ---- Initial: select platform ---- */}
+          {!oauthAuthUrl && !oauthDeviceData && (
+            <>
+              <p className="text-sm text-gray-500 dark:text-dark-400">
+                选择 OAuth 平台后点击"开始授权"。
+                Anthropic 将跳转到授权页面完成登录；
+                OpenAI 使用设备码方式，在新页面输入验证码即可完成授权。
+              </p>
+
+              <div>
+                <label className="input-label">OAuth 平台</label>
+                <Select
+                  options={[
+                    { value: 'anthropic', label: 'Anthropic Claude' },
+                    { value: 'openai', label: 'OpenAI' },
+                  ]}
+                  value={oauthPlatform}
+                  onChange={setOauthPlatform}
+                />
+              </div>
+
+              {oauthPlatform === 'anthropic' && (
+                <p className="text-xs text-gray-400">
+                  回调地址：{window.location.origin}/admin/oauth/callback
+                </p>
+              )}
+
+              {oauthError && (
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
+                  {oauthError}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ---- Anthropic: popup opened ---- */}
+          {oauthAuthUrl && (
+            <>
+              <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-4 text-center">
+                <Icon name="check" size="lg" className="mx-auto mb-2 text-green-600 dark:text-green-400" />
+                <p className="text-sm text-green-700 dark:text-green-300">
+                  授权页面已打开，请在弹出的窗口中完成 Anthropic 账号授权。
+                </p>
+              </div>
+
+              {oauthPopupRef.current === null && (
+                <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-4">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
+                    弹窗可能被浏览器拦截，请手动点击下方链接打开授权页面：
+                  </p>
+                  <a
+                    href={oauthAuthUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-violet-600 dark:text-violet-400 underline break-all hover:text-violet-700"
+                  >
+                    {oauthAuthUrl}
+                  </a>
+                </div>
+              )}
+
+              <p className="text-center text-xs text-gray-400">
+                授权完成后账号将自动出现在列表中。
+              </p>
+            </>
+          )}
+
+          {/* ---- OpenAI: Device Code Flow ---- */}
+          {oauthDeviceData && oauthPollStatus !== 'SUCCESS' && (
+            <>
+              <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-4">
+                <p className="text-sm font-medium text-blue-800 dark:text-blue-200 mb-3">
+                  请按以下步骤完成 OpenAI 授权：
+                </p>
+                <ol className="list-decimal list-inside space-y-2 text-sm text-blue-700 dark:text-blue-300">
+                  <li>
+                    打开验证页面：
+                    <a
+                      href={oauthDeviceData.verificationUri}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="ml-1 text-violet-600 dark:text-violet-400 underline hover:text-violet-700"
+                    >
+                      {oauthDeviceData.verificationUri}
+                    </a>
+                  </li>
+                  <li>
+                    输入以下验证码：
+                    <span className="ml-1 font-mono text-lg font-bold tracking-widest text-gray-900 dark:text-white select-all">
+                      {oauthDeviceData.userCode}
+                    </span>
+                  </li>
+                  <li>在 OpenAI 页面确认授权</li>
+                </ol>
+              </div>
+
+              {oauthPollStatus === 'PENDING' && (
+                <div className="flex items-center justify-center gap-3 text-sm text-gray-500 dark:text-dark-400">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+                  等待授权中（已轮询 {oauthPollCount} 次）...
+                </div>
+              )}
+
+              {oauthPollStatus === 'EXPIRED' && (
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
+                  {oauthError || '设备码已过期，请点击下方"重新授权"按钮'}
+                </div>
+              )}
+
+              {oauthError && oauthPollStatus !== 'EXPIRED' && (
+                <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
+                  {oauthError}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* ---- OpenAI: Success ---- */}
+          {oauthDeviceData && oauthPollStatus === 'SUCCESS' && (
+            <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-4 text-center">
+              <Icon name="check" size="lg" className="mx-auto mb-2 text-green-600 dark:text-green-400" />
+              <p className="text-sm text-green-700 dark:text-green-300">
+                OpenAI 授权成功！账号已自动创建，此窗口即将关闭。
+              </p>
+            </div>
+          )}
         </div>
       </Modal>
 
