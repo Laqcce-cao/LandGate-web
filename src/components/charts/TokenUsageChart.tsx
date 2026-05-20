@@ -214,10 +214,19 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
     outputTokens:    isDark ? '#60a5fa' : '#3b82f6',
   };
 
+  // Total tokens in current view
+  const totalTokens = useMemo(() => {
+    return chartData.reduce(
+      (s, d) => s + d.inputTokens + d.outputTokens + d.cacheReadTokens,
+      0,
+    );
+  }, [chartData]);
+
   const axisColor = isDark ? '#94a3b8' : '#64748b';
   const gridColor = isDark ? '#334155' : '#e2e8f0';
 
   const timeTabs = MODES.map((m) => ({ key: m.key, label: m.label }));
+  const timeLabel = MODES.find((m) => m.key === timeMode)?.label || '';
 
   const renderContent = () => {
     if (loading) {
@@ -329,7 +338,11 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
   return (
     <div className="card p-6">
       <h3 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
-      <p className="mb-4 text-sm text-gray-500 dark:text-dark-400">各时段 Token 消耗分布</p>
+      <p className="mb-4 text-sm text-gray-500 dark:text-dark-400">
+        {loading || error || logs.length === 0
+          ? '各时段 Token 消耗分布'
+          : `${timeLabel}共 ${formatCompactNumber(totalTokens)} tokens`}
+      </p>
       {renderContent()}
     </div>
   );

@@ -191,7 +191,7 @@ export default function UsagePage() {
   const totalPages = Math.ceil(total / 20);
 
   return (
-    <div>
+    <div className="text-center">
       {/* Summary Cards */}
       {stats && (
         <div className="mb-4 grid grid-cols-3 gap-3">

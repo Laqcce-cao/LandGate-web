@@ -32,16 +32,8 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* Token usage chart */}
-      <div className="mb-8">
-        <TokenUsageChart
-          fetchLogs={(page, size) => usageApi.myUsage(page, size)}
-          title="Token 用量趋势"
-        />
-      </div>
-
       {/* Quick start guide */}
-      <div className="card p-6">
+      <div className="card mb-8 p-6">
         <h3 className="mb-4 text-lg font-semibold text-gray-900 dark:text-white">快速开始</h3>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
           {quickLinks.map((link) => (
@@ -59,6 +51,12 @@ export default function DashboardPage() {
           ))}
         </div>
       </div>
+
+      {/* Token usage chart */}
+      <TokenUsageChart
+        fetchLogs={(page, size) => usageApi.myUsage(page, size)}
+        title="Token 用量趋势"
+      />
     </div>
   );
 }
