@@ -214,13 +214,15 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
     outputTokens:    isDark ? '#60a5fa' : '#3b82f6',
   };
 
-  // Total tokens in current view
+  // Total tokens from ALL fetched logs (not time-filtered), matches UsagePage stats
   const totalTokens = useMemo(() => {
-    return chartData.reduce(
-      (s, d) => s + d.inputTokens + d.outputTokens + d.cacheReadTokens,
-      0,
-    );
-  }, [chartData]);
+    let total = 0;
+    for (const l of logs) {
+      if (selectedModel !== '__all__' && (l.model || 'unknown') !== selectedModel) continue;
+      total += (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0);
+    }
+    return total;
+  }, [logs, selectedModel]);
 
   const axisColor = isDark ? '#94a3b8' : '#64748b';
   const gridColor = isDark ? '#334155' : '#e2e8f0';
@@ -341,7 +343,7 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
       <p className="mb-4 text-sm text-gray-500 dark:text-dark-400">
         {loading || error || logs.length === 0
           ? '各时段 Token 消耗分布'
-          : `${timeLabel}共 ${formatCompactNumber(totalTokens)} tokens`}
+          : `共 ${formatCompactNumber(totalTokens)} tokens（${timeLabel}）`}
       </p>
       {renderContent()}
     </div>

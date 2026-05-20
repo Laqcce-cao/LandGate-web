@@ -58,6 +58,7 @@ export default function UsagePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
+  const [statsLogs, setStatsLogs] = useState<UsageLog[]>([]);
   const addToast = useToastStore((s) => s.addToast);
 
   const fetchLogs = useCallback(async () => {
@@ -74,28 +75,37 @@ export default function UsagePage() {
     }
   }, [page, addToast]);
 
+  // Fetch larger batch for summary stats (consistent with dashboard chart)
+  useEffect(() => {
+    usageApi.myUsage(0, 200)
+      .then((res) => setStatsLogs(res.data.logs ?? []))
+      .catch(() => {});
+  }, []);
+
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
 
   const stats = useMemo(() => {
-    if (logs.length === 0) return null;
-    const totalTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0), 0);
-    const totalCost = logs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
-    const totalRequests = logs.length;
+    if (statsLogs.length === 0) return null;
+    const totalTokens = statsLogs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0), 0);
+    const totalCost = statsLogs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
+    const totalRequests = statsLogs.length;
     return { totalTokens, totalCost, totalRequests };
-  }, [logs]);
+  }, [statsLogs]);
 
   const columns = [
     {
       key: 'createdAt',
       label: '时间',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center text-xs text-gray-500 dark:text-dark-400',
       formatter: (val: unknown) => formatTime(val),
     },
     {
       key: 'model',
       label: '模型',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center text-sm font-medium text-gray-800 dark:text-dark-200',
       formatter: (val: unknown) => {
         const s = String(val ?? '—');
@@ -105,6 +115,7 @@ export default function UsagePage() {
     {
       key: 'platform',
       label: '平台',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center',
       formatter: (val: unknown) => {
         const p = String(val ?? '');
@@ -119,6 +130,7 @@ export default function UsagePage() {
     {
       key: 'groupId',
       label: '分组',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center',
       formatter: (val: unknown) => {
         const v = val as number;
@@ -128,6 +140,7 @@ export default function UsagePage() {
     {
       key: 'inputTokens',
       label: '输入',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm text-violet-600 dark:text-violet-400">{formatTokens(val)}</span>
@@ -136,6 +149,7 @@ export default function UsagePage() {
     {
       key: 'outputTokens',
       label: '输出',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm text-indigo-600 dark:text-indigo-400">{formatTokens(val)}</span>
@@ -144,6 +158,7 @@ export default function UsagePage() {
     {
       key: 'cacheReadTokens',
       label: '缓存命中',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm text-blue-600 dark:text-blue-400">{formatTokens(val)}</span>
@@ -152,6 +167,7 @@ export default function UsagePage() {
     {
       key: 'tokens',
       label: '总令牌',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center tabular-nums font-medium',
       formatter: (_: unknown, row: UsageLog) => {
         const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0) + (row.cacheReadTokens ?? 0);
@@ -161,6 +177,7 @@ export default function UsagePage() {
     {
       key: 'duration',
       label: '用时 / 首字',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center text-xs',
       formatter: (_: unknown, row: UsageLog) => {
         const dur = formatDuration(row.durationMs);
@@ -175,6 +192,7 @@ export default function UsagePage() {
     {
       key: 'totalCost',
       label: '花费',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm font-medium text-rose-600 dark:text-rose-400">{formatCost(val)}</span>
@@ -183,6 +201,7 @@ export default function UsagePage() {
     {
       key: 'ipAddress',
       label: 'IP',
+      headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center text-xs text-gray-400 dark:text-dark-500 font-mono',
       formatter: (val: unknown) => String(val ?? '—'),
     },
@@ -191,7 +210,7 @@ export default function UsagePage() {
   const totalPages = Math.ceil(total / 20);
 
   return (
-    <div className="text-center">
+    <div>
       {/* Summary Cards */}
       {stats && (
         <div className="mb-4 grid grid-cols-3 gap-3">
