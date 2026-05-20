@@ -3,7 +3,7 @@ import { usageApi, type UsageLog } from '../api/admin/usage';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { DataTable } from '../components/ui/DataTable';
-import { Icon } from '../components/ui/Icon';
+import { Icon, type IconName } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
 
 type FilterType = 'all' | 'user' | 'key' | 'account';
@@ -297,8 +297,8 @@ export default function AdminUsagePage() {
   // -------------------------------------------------------------------------
   // 筛选器配置
   // -------------------------------------------------------------------------
-  const filterOptions: { value: FilterType; label: string; icon: string; placeholder: string }[] = [
-    { value: 'all', label: '全部', icon: 'list', placeholder: '' },
+  const filterOptions: { value: FilterType; label: string; icon: IconName; placeholder: string }[] = [
+    { value: 'all', label: '全部', icon: 'menu', placeholder: '' },
     { value: 'user', label: '用户', icon: 'user', placeholder: '输入用户 ID' },
     { value: 'key', label: 'API Key', icon: 'key', placeholder: '输入 API Key ID' },
     { value: 'account', label: '账号', icon: 'server', placeholder: '输入账号 ID' },

@@ -1,9 +1,17 @@
 import { useNavigate } from 'react-router-dom';
 import { usageApi } from '../api/admin/usage';
-import { Icon } from '../components/ui/Icon';
+import { Icon, type IconName } from '../components/ui/Icon';
 import { TokenUsageChart } from '../components/charts/TokenUsageChart';
 
-const quickLinks = [
+interface QuickLink {
+  path: string;
+  icon: IconName;
+  color: string;
+  title: string;
+  desc: string;
+}
+
+const quickLinks: QuickLink[] = [
   {
     path: '/api-keys',
     icon: 'key',
