@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { useAuthStore } from '../stores/authStore';
+import { usageApi } from '../api/admin/usage';
 import { StatCard } from '../components/ui/StatCard';
 import { Icon } from '../components/ui/Icon';
+import { TokenUsageChart } from '../components/charts/TokenUsageChart';
 
 export default function DashboardPage() {
   const user = useAuthStore((s) => s.user);
@@ -64,6 +66,14 @@ export default function DashboardPage() {
             <p className="text-xs text-gray-500 dark:text-dark-400">使用兑换码为账户充值余额</p>
           </div>
         </div>
+      </div>
+
+      {/* Token usage chart */}
+      <div className="mt-8">
+        <TokenUsageChart
+          fetchLogs={(page, size) => usageApi.myUsage(page, size)}
+          title="Token 用量趋势"
+        />
       </div>
     </div>
   );
