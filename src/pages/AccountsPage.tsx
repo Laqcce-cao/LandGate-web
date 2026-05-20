@@ -7,7 +7,7 @@ import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Toggle } from '../components/ui/Toggle';
 import { StatusBadge } from '../components/ui/StatusBadge';
-import { DataTable } from '../components/ui/DataTable';
+import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
@@ -81,6 +81,8 @@ export default function AccountsPage() {
   const [editTarget, setEditTarget] = useState<Account | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
+  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [modelInputs, setModelInputs] = useState<Record<number, string>>({});
   const addToast = useToastStore((s) => s.addToast);
 
   // ---- 基础字段 ----
@@ -394,46 +396,60 @@ export default function AccountsPage() {
     }
   };
 
-  const columns = [
-    { key: 'id', label: 'ID' },
-    { key: 'name', label: '名称' },
-    { key: 'platform', label: '平台' },
-    { key: 'type', label: '类型' },
-    {
-      key: 'status',
-      label: '状态',
-      formatter: (val: unknown) => <StatusBadge status={String(val ?? 'ACTIVE')} />,
-    },
-    {
-      key: 'schedulable',
-      label: '可调度',
-      formatter: (_: unknown, row: Account) => (
-        <Toggle
-          checked={row.schedulable}
-          onChange={() => handleToggleSchedulable(row)}
-        />
-      ),
-    },
-    {
-      key: 'actions',
-      label: '操作',
-      formatter: (_: unknown, row: Account) => (
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
-            <Icon name="edit" size="sm" />
-          </Button>
-          {row.type === 'oauth' && (
-            <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(row)} title="刷新 Token">
-              <Icon name="refresh" size="sm" />
-            </Button>
-          )}
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-            <Icon name="trash" size="sm" className="text-red-500" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  /* ─── 模型白名单管理 ─── */
+  const parseSupportedModels = (a: Account): string[] => {
+    try {
+      if (!a.supportedModels) return [];
+      const arr = JSON.parse(a.supportedModels);
+      return Array.isArray(arr) ? arr : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const addSupportedModel = async (accountId: number, model: string) => {
+    const trimmed = model.trim();
+    if (!trimmed) return;
+    const a = accounts.find((acc) => acc.id === accountId);
+    if (!a) return;
+    const current = parseSupportedModels(a);
+    if (current.includes(trimmed)) return;
+    const updated = JSON.stringify([...current, trimmed]);
+    // optimistic update
+    setAccounts((prev) =>
+      prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
+    );
+    setModelInputs((prev) => ({ ...prev, [accountId]: '' }));
+    try {
+      await accountsApi.update(accountId, { supportedModels: updated });
+      addToast({ type: 'success', message: `已添加支持模型: ${trimmed}` });
+    } catch {
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: a.supportedModels ?? undefined } : acc)),
+      );
+      addToast({ type: 'error', message: '操作失败' });
+    }
+  };
+
+  const removeSupportedModel = async (accountId: number, model: string) => {
+    const a = accounts.find((acc) => acc.id === accountId);
+    if (!a) return;
+    const current = parseSupportedModels(a);
+    const updated = JSON.stringify(current.filter((m) => m !== model));
+    // optimistic update
+    setAccounts((prev) =>
+      prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
+    );
+    try {
+      await accountsApi.update(accountId, { supportedModels: updated });
+      addToast({ type: 'success', message: `已移除支持模型: ${model}` });
+    } catch {
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: a.supportedModels ?? undefined } : acc)),
+      );
+      addToast({ type: 'error', message: '操作失败' });
+    }
+  };
 
   const platformOptions = [
     { value: 'openai', label: 'OpenAI' },
@@ -470,9 +486,141 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      <div className="card">
-        <DataTable columns={columns} data={accounts} loading={loading} />
-      </div>
+      {loading ? (
+        <div className="flex items-center justify-center py-24">
+          <LoadingSpinner size="xl" />
+        </div>
+      ) : accounts.length === 0 ? (
+        <div className="card">
+          <div className="flex flex-col items-center gap-3 py-20 text-gray-400 dark:text-dark-500">
+            <Icon name="grid" size="xl" className="text-gray-200 dark:text-dark-700" />
+            <p className="text-sm">暂无账号，点击右上角"添加账号"开始</p>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {accounts.map((a) => {
+            const open = expanded.has(a.id);
+            const supportedModels = parseSupportedModels(a);
+            const platformBadge: Record<string, string> = {
+              openai: 'bg-green-100 text-green-700',
+              anthropic: 'bg-orange-100 text-orange-700',
+              gemini: 'bg-blue-100 text-blue-700',
+              antigravity: 'bg-purple-100 text-purple-700',
+            };
+
+            return (
+              <div key={a.id} className="card overflow-hidden">
+                {/* ── account header ── */}
+                <button
+                  type="button"
+                  onClick={() =>
+                    setExpanded((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(a.id)) next.delete(a.id); else next.add(a.id);
+                      return next;
+                    })
+                  }
+                  className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors"
+                >
+                  <Icon
+                    name={open ? 'chevronDown' : 'chevronRight'}
+                    size="sm"
+                    className="shrink-0 text-gray-400"
+                  />
+                  <span className="text-xs text-gray-400 font-mono">#{a.id}</span>
+                  <span className="font-semibold text-gray-900 dark:text-white">{a.name}</span>
+                  <span
+                    className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[a.platform] ?? 'bg-gray-100 text-gray-600'}`}
+                  >
+                    {a.platform ?? '—'}
+                  </span>
+                  <span className="text-xs text-gray-400 dark:text-dark-500">{a.type}</span>
+                  <span className="text-xs text-gray-400 dark:text-dark-500">
+                    并发 {a.concurrency ?? 3} · 倍率 ×{a.rateMultiplier ?? 1}
+                  </span>
+                  <StatusBadge status={a.status ?? 'ACTIVE'} />
+                  <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
+                    <Toggle
+                      checked={a.schedulable}
+                      onChange={() => handleToggleSchedulable(a)}
+                    />
+                    <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                      <Icon name="edit" size="xs" />
+                    </Button>
+                    {a.type === 'oauth' && (
+                      <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)} title="刷新 Token">
+                        <Icon name="refresh" size="xs" />
+                      </Button>
+                    )}
+                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
+                      <Icon name="trash" size="xs" className="text-red-500" />
+                    </Button>
+                  </div>
+                </button>
+
+                {/* ── account expansion: model whitelist ── */}
+                {open && (
+                  <div className="border-t border-gray-100 dark:border-dark-700">
+                    <div className="px-5 py-3">
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                          ✅ 支持模型（白名单）
+                        </span>
+                      </div>
+                      {supportedModels.length === 0 ? (
+                        <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
+                          未设置 — 添加模型名以限制该号只路由这些模型的请求（留空表示支持所有模型）
+                        </p>
+                      ) : (
+                        <div className="mb-2 space-y-1">
+                          {supportedModels.map((m) => (
+                            <div
+                              key={m}
+                              className="flex items-center gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm dark:bg-green-900/10"
+                            >
+                              <span className="font-medium text-green-700 dark:text-green-400 min-w-0 truncate flex-1">
+                                {m}
+                              </span>
+                              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] text-green-600 dark:bg-green-900/30 dark:text-green-400">
+                                已支持
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeSupportedModel(a.id, m)}
+                              >
+                                <Icon name="x" size="xs" className="text-red-400" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="输入模型名，如 claude-sonnet-4"
+                          value={modelInputs[a.id] ?? ''}
+                          onChange={(e) =>
+                            setModelInputs((prev) => ({ ...prev, [a.id]: e.target.value }))
+                          }
+                          className="flex-1"
+                        />
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => addSupportedModel(a.id, modelInputs[a.id] ?? '')}
+                        >
+                          <Icon name="plus" size="xs" /> 添加
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Create/Edit modal */}
       <Modal
