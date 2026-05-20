@@ -13,6 +13,18 @@ import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
 
 // ---------------------------------------------------------------------------
+// 工具函数
+// ---------------------------------------------------------------------------
+const parseJsonSafe = (raw: unknown): Record<string, unknown> => {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw as Record<string, unknown>;
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw); } catch { return {}; }
+  }
+  return {};
+};
+
+// ---------------------------------------------------------------------------
 // 每种认证类型对应的凭证字段定义
 // ---------------------------------------------------------------------------
 interface CredField {
@@ -293,18 +305,18 @@ export default function AccountsPage() {
     setType(account.type);
     setStatusForm(account.status);
 
-    // 解析已有 credentials 对象到表单字段
+    // 解析已有 credentials JSON 字符串到表单字段
     const fields = getCredFields(account.type);
     const vals: Record<string, string> = {};
-    const creds = account.credentials ?? {};
+    const creds = parseJsonSafe(account.credentials);
     fields.forEach((f) => {
       const v = (creds as Record<string, unknown>)[f.key];
       vals[f.key] = typeof v === 'string' ? v : (v ? JSON.stringify(v) : '');
     });
     setCredValues(vals);
 
-    // 解析 extra.base_url
-    const extra = account.extra ?? {};
+    // 解析 extra.base_url（extra 也是 JSON 字符串）
+    const extra = parseJsonSafe(account.extra);
     setExtraBaseUrl(typeof (extra as Record<string, unknown>).base_url === 'string' ? (extra as Record<string, unknown>).base_url as string : '');
 
     setConcurrency(account.concurrency ?? 3);
@@ -317,14 +329,16 @@ export default function AccountsPage() {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      // 只保留非空的凭证字段
-      const creds: Record<string, string> = {};
+      // 编辑时从原始凭证开始，只覆盖用户修改过的非空字段，避免丢失未修改的凭证
+      const originalCreds = editTarget ? parseJsonSafe(editTarget.credentials) as Record<string, string> : {};
+      const creds: Record<string, string> = { ...originalCreds };
       Object.entries(credValues).forEach(([k, v]) => {
         if (v.trim()) creds[k] = v.trim();
       });
 
-      // 构建 extra
-      const extra: Record<string, string> = {};
+      // 构建 extra：编辑时保留原始 extra，只覆盖 base_url
+      const originalExtra = editTarget ? parseJsonSafe(editTarget.extra) as Record<string, string> : {};
+      const extra: Record<string, string> = { ...originalExtra };
       if (extraBaseUrl.trim()) extra.base_url = extraBaseUrl.trim();
 
       const payload = {
