@@ -83,6 +83,7 @@
     @apply focus:outline-none focus:ring-2 focus:ring-primary-500/50 focus:ring-offset-2;
     @apply disabled:transform-none disabled:cursor-not-allowed disabled:opacity-50;
     @apply active:scale-[0.98];
+    @apply whitespace-nowrap;
   }
 
   .btn-primary {

@@ -327,7 +327,7 @@ export default function AdminUsagePage() {
           </div>
           <div className="card flex items-center gap-3 px-5 py-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-              <Icon name="database" size="sm" className="text-purple-600 dark:text-purple-400" />
+              <Icon name="inbox" size="sm" className="text-purple-600 dark:text-purple-400" />
             </div>
             <div className="min-w-0">
               <p className="text-xs text-gray-400 dark:text-dark-400">缓存读</p>
@@ -338,7 +338,7 @@ export default function AdminUsagePage() {
           </div>
           <div className="card flex items-center gap-3 px-5 py-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-              <Icon name="arrowLeft" size="sm" className="text-indigo-600 dark:text-indigo-400" />
+              <Icon name="arrowRight" size="sm" className="text-indigo-600 dark:text-indigo-400" />
             </div>
             <div className="min-w-0">
               <p className="text-xs text-gray-400 dark:text-dark-400">输出令牌</p>
