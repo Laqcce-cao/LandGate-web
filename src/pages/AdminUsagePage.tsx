@@ -127,11 +127,10 @@ export default function AdminUsagePage() {
     const totalInputTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0), 0);
     const totalCacheRead = logs.reduce((s, l) => s + (l.cacheReadTokens ?? 0), 0);
     const totalOutputTokens = logs.reduce((s, l) => s + (l.outputTokens ?? 0), 0);
-    const totalCacheWrite = logs.reduce((s, l) => s + (l.cacheCreationTokens ?? 0), 0);
-    const totalTokens = totalInputTokens + totalCacheRead + totalOutputTokens + totalCacheWrite;
+    const totalTokens = totalInputTokens + totalCacheRead + totalOutputTokens;
     const totalCost = logs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
     const uniqueUsers = new Set(logs.map((l) => l.userId).filter(Boolean)).size;
-    return { totalInputTokens, totalCacheRead, totalOutputTokens, totalCacheWrite, totalTokens, totalCost, uniqueUsers };
+    return { totalInputTokens, totalCacheRead, totalOutputTokens, totalTokens, totalCost, uniqueUsers };
   }, [logs]);
 
   // -------------------------------------------------------------------------
@@ -237,17 +236,6 @@ export default function AdminUsagePage() {
       ),
     },
     {
-      key: 'cacheCreationTokens',
-      label: '缓存写',
-      className: 'whitespace-nowrap text-right tabular-nums',
-      formatter: (val: unknown) => {
-        const v = Number(val ?? 0);
-        return v > 0
-          ? <span className="text-sm text-fuchsia-500 dark:text-fuchsia-400">{formatTokens(v)}</span>
-          : <span className="text-gray-300 dark:text-dark-600">—</span>;
-      },
-    },
-    {
       key: 'tokens',
       label: '合计',
       className: 'whitespace-nowrap text-right tabular-nums font-medium',
@@ -325,7 +313,7 @@ export default function AdminUsagePage() {
     <div className="space-y-4">
       {/* 统计摘要卡片 */}
       {stats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-6">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
           <div className="card flex items-center gap-3 px-5 py-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
               <Icon name="sparkles" size="sm" className="text-violet-600 dark:text-violet-400" />
@@ -356,17 +344,6 @@ export default function AdminUsagePage() {
               <p className="text-xs text-gray-400 dark:text-dark-400">输出令牌</p>
               <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
                 {formatTokens(stats.totalOutputTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-fuchsia-100 dark:bg-fuchsia-900/30">
-              <Icon name="database" size="sm" className="text-fuchsia-600 dark:text-fuchsia-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">缓存写</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalCacheWrite)}
               </p>
             </div>
           </div>

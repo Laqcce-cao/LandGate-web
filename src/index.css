@@ -282,6 +282,7 @@
     @apply text-gray-600 dark:text-dark-300;
     @apply bg-gray-50 dark:bg-dark-800/50;
     @apply border-b border-gray-200 dark:border-dark-700;
+    @apply whitespace-nowrap;
   }
 
   .table td {
