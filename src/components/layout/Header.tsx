@@ -16,6 +16,7 @@ const pageTitles: Record<string, string> = {
   '/admin/usage': '用量计费',
   '/admin/marketing': '营销管理',
   '/admin/model-prices': '模型价格',
+  '/admin/users': '用户管理',
 };
 
 interface HeaderProps {

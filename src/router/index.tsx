@@ -17,6 +17,7 @@ import UsagePage from '../pages/UsagePage';
 import AdminUsagePage from '../pages/AdminUsagePage';
 import MarketingPage from '../pages/MarketingPage';
 import ModelPricesPage from '../pages/ModelPricesPage';
+import UsersPage from '../pages/admin/UsersPage';
 import ProfilePage from '../pages/ProfilePage';
 import RedeemPage from '../pages/RedeemPage';
 
@@ -110,6 +111,7 @@ export default function AppRouter() {
             <Route path="/admin/usage" element={<AdminUsagePage />} />
             <Route path="/admin/marketing" element={<MarketingPage />} />
             <Route path="/admin/model-prices" element={<ModelPricesPage />} />
+            <Route path="/admin/users" element={<UsersPage />} />
           </Route>
         </Route>
 

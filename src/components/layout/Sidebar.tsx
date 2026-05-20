@@ -20,6 +20,7 @@ const adminNavItems = [
   { path: '/admin/payments', label: '支付管理', icon: 'creditCard' as const },
   { path: '/admin/usage', label: '用量计费', icon: 'chartBar' as const },
   { path: '/admin/marketing', label: '营销管理', icon: 'gift' as const },
+  { path: '/admin/users', label: '用户管理', icon: 'userCircle' as const },
 ];
 
 const adminPersonalItems = [
