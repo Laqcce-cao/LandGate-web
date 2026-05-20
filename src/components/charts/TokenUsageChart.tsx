@@ -17,7 +17,6 @@ interface TokenUsageData {
   cacheReadTokens: number;
   inputTokens: number;
   outputTokens: number;
-  cacheCreationTokens: number;
 }
 
 interface TokenUsageChartProps {
@@ -38,10 +37,6 @@ function formatCompactNumber(n: number): string {
   if (n >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
   if (n >= 1_000) return (n / 1_000).toFixed(1) + 'K';
   return n.toLocaleString();
-}
-
-function padZero(n: number): string {
-  return n < 10 ? '0' + n : String(n);
 }
 
 /**
@@ -65,7 +60,6 @@ function aggregateByDay(logs: UsageLog[], days: number, selectedModel: string): 
       cacheReadTokens: 0,
       inputTokens: 0,
       outputTokens: 0,
-      cacheCreationTokens: 0,
     });
   }
 
@@ -78,10 +72,9 @@ function aggregateByDay(logs: UsageLog[], days: number, selectedModel: string): 
     const idx = Math.floor((logDate.getTime() - cutoff.getTime()) / (24 * 60 * 60 * 1000));
     if (idx < 0 || idx >= days) continue;
 
-    buckets[idx].inputTokens          += log.inputTokens ?? 0;
-    buckets[idx].outputTokens         += log.outputTokens ?? 0;
-    buckets[idx].cacheReadTokens      += log.cacheReadTokens ?? 0;
-    buckets[idx].cacheCreationTokens  += log.cacheCreationTokens ?? 0;
+    buckets[idx].inputTokens     += log.inputTokens ?? 0;
+    buckets[idx].outputTokens    += log.outputTokens ?? 0;
+    buckets[idx].cacheReadTokens += log.cacheReadTokens ?? 0;
   }
 
   return buckets;
@@ -105,7 +98,6 @@ function aggregateByMonth(logs: UsageLog[], months: number, selectedModel: strin
       cacheReadTokens: 0,
       inputTokens: 0,
       outputTokens: 0,
-      cacheCreationTokens: 0,
     });
   }
 
@@ -120,10 +112,9 @@ function aggregateByMonth(logs: UsageLog[], months: number, selectedModel: strin
       (logDate.getMonth() - cutoff.getMonth());
     if (idx < 0 || idx >= months) continue;
 
-    buckets[idx].inputTokens          += log.inputTokens ?? 0;
-    buckets[idx].outputTokens         += log.outputTokens ?? 0;
-    buckets[idx].cacheReadTokens      += log.cacheReadTokens ?? 0;
-    buckets[idx].cacheCreationTokens  += log.cacheCreationTokens ?? 0;
+    buckets[idx].inputTokens     += log.inputTokens ?? 0;
+    buckets[idx].outputTokens    += log.outputTokens ?? 0;
+    buckets[idx].cacheReadTokens += log.cacheReadTokens ?? 0;
   }
 
   return buckets;
@@ -133,17 +124,15 @@ function CustomTooltip({ active, payload, label, isDark }: any) {
   if (!active || !payload || payload.length === 0) return null;
 
   const nameMap: Record<string, string> = {
-    cacheReadTokens: '缓存读取',
+    cacheReadTokens: '缓存命中',
     inputTokens: '输入令牌',
     outputTokens: '输出令牌',
-    cacheCreationTokens: '缓存创建',
   };
 
   const colors: Record<string, string> = {
-    cacheReadTokens:    isDark ? '#3b82f6' : '#2563eb',
-    inputTokens:        isDark ? '#60a5fa' : '#3b82f6',
-    outputTokens:       isDark ? '#93c5fd' : '#60a5fa',
-    cacheCreationTokens: isDark ? '#bfdbfe' : '#93c5fd',
+    cacheReadTokens: isDark ? '#93c5fd' : '#60a5fa',
+    inputTokens:     isDark ? '#60a5fa' : '#3b82f6',
+    outputTokens:    isDark ? '#3b82f6' : '#2563eb',
   };
 
   return (
@@ -220,10 +209,9 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
   }, [logs]);
 
   const colors = {
-    cacheReadTokens:    isDark ? '#3b82f6' : '#2563eb',
-    inputTokens:        isDark ? '#60a5fa' : '#3b82f6',
-    outputTokens:       isDark ? '#93c5fd' : '#60a5fa',
-    cacheCreationTokens: isDark ? '#bfdbfe' : '#93c5fd',
+    cacheReadTokens: isDark ? '#93c5fd' : '#60a5fa',
+    inputTokens:     isDark ? '#60a5fa' : '#3b82f6',
+    outputTokens:    isDark ? '#3b82f6' : '#2563eb',
   };
 
   const axisColor = isDark ? '#94a3b8' : '#64748b';
@@ -315,25 +303,23 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
               tickFormatter={formatCompactNumber}
               width={50}
             />
-            <Tooltip content={<CustomTooltip isDark={isDark} />} />
+            <Tooltip content={<CustomTooltip isDark={isDark} />} cursor={false} />
             <Legend
               verticalAlign="top"
               align="right"
               wrapperStyle={{ fontSize: 12, paddingBottom: 8 }}
               formatter={(value: string) => {
                 const map: Record<string, string> = {
-                  cacheReadTokens: '缓存读取',
+                  cacheReadTokens: '缓存命中',
                   inputTokens: '输入令牌',
                   outputTokens: '输出令牌',
-                  cacheCreationTokens: '缓存创建',
                 };
                 return <span style={{ color: axisColor }}>{map[value] || value}</span>;
               }}
             />
-            <Bar dataKey="cacheReadTokens"     stackId="tokens" fill={colors.cacheReadTokens}     name="cacheReadTokens"     barSize={isDayMode ? 24 : 32} radius={[0, 0, 0, 0]} />
-            <Bar dataKey="inputTokens"         stackId="tokens" fill={colors.inputTokens}         name="inputTokens"         barSize={isDayMode ? 24 : 32} />
-            <Bar dataKey="outputTokens"        stackId="tokens" fill={colors.outputTokens}        name="outputTokens"        barSize={isDayMode ? 24 : 32} />
-            <Bar dataKey="cacheCreationTokens"  stackId="tokens" fill={colors.cacheCreationTokens}  name="cacheCreationTokens"  barSize={isDayMode ? 24 : 32} />
+            <Bar dataKey="cacheReadTokens" stackId="tokens" fill={colors.cacheReadTokens} name="cacheReadTokens" barSize={isDayMode ? 24 : 32} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="inputTokens"     stackId="tokens" fill={colors.inputTokens}     name="inputTokens"     barSize={isDayMode ? 24 : 32} />
+            <Bar dataKey="outputTokens"    stackId="tokens" fill={colors.outputTokens}    name="outputTokens"    barSize={isDayMode ? 24 : 32} />
           </BarChart>
         </ResponsiveContainer>
       </>
