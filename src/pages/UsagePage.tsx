@@ -80,7 +80,7 @@ export default function UsagePage() {
 
   const stats = useMemo(() => {
     if (logs.length === 0) return null;
-    const totalTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0), 0);
+    const totalTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0), 0);
     const totalCost = logs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
     const totalRequests = logs.length;
     return { totalTokens, totalCost, totalRequests };
@@ -90,23 +90,22 @@ export default function UsagePage() {
     {
       key: 'createdAt',
       label: '时间',
-      className: 'whitespace-nowrap text-xs text-gray-500 dark:text-dark-400',
+      className: 'whitespace-nowrap text-center text-xs text-gray-500 dark:text-dark-400',
       formatter: (val: unknown) => formatTime(val),
     },
     {
       key: 'model',
       label: '模型',
-      className: 'whitespace-nowrap text-sm font-medium text-gray-800 dark:text-dark-200',
+      className: 'whitespace-nowrap text-center text-sm font-medium text-gray-800 dark:text-dark-200',
       formatter: (val: unknown) => {
         const s = String(val ?? '—');
-        // show shorter model name
         return s.length > 28 ? s.slice(0, 26) + '…' : s;
       },
     },
     {
       key: 'platform',
       label: '平台',
-      className: 'whitespace-nowrap',
+      className: 'whitespace-nowrap text-center',
       formatter: (val: unknown) => {
         const p = String(val ?? '');
         const cfg = platformConfig[p];
@@ -128,26 +127,34 @@ export default function UsagePage() {
     },
     {
       key: 'inputTokens',
-      label: '提示',
-      className: 'whitespace-nowrap text-right tabular-nums',
+      label: '输入',
+      className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm text-violet-600 dark:text-violet-400">{formatTokens(val)}</span>
       ),
     },
     {
       key: 'outputTokens',
-      label: '补全',
-      className: 'whitespace-nowrap text-right tabular-nums',
+      label: '输出',
+      className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm text-indigo-600 dark:text-indigo-400">{formatTokens(val)}</span>
       ),
     },
     {
+      key: 'cacheReadTokens',
+      label: '缓存命中',
+      className: 'whitespace-nowrap text-center tabular-nums',
+      formatter: (val: unknown) => (
+        <span className="text-sm text-blue-600 dark:text-blue-400">{formatTokens(val)}</span>
+      ),
+    },
+    {
       key: 'tokens',
-      label: '令牌',
-      className: 'whitespace-nowrap text-right tabular-nums font-medium',
+      label: '总令牌',
+      className: 'whitespace-nowrap text-center tabular-nums font-medium',
       formatter: (_: unknown, row: UsageLog) => {
-        const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0);
+        const total = (row.inputTokens ?? 0) + (row.outputTokens ?? 0) + (row.cacheReadTokens ?? 0);
         return <span className="text-sm text-gray-700 dark:text-dark-200">{formatTokens(total)}</span>;
       },
     },
@@ -168,7 +175,7 @@ export default function UsagePage() {
     {
       key: 'totalCost',
       label: '花费',
-      className: 'whitespace-nowrap text-right tabular-nums',
+      className: 'whitespace-nowrap text-center tabular-nums',
       formatter: (val: unknown) => (
         <span className="text-sm font-medium text-rose-600 dark:text-rose-400">{formatCost(val)}</span>
       ),
@@ -176,7 +183,7 @@ export default function UsagePage() {
     {
       key: 'ipAddress',
       label: 'IP',
-      className: 'whitespace-nowrap text-xs text-gray-400 dark:text-dark-500 font-mono',
+      className: 'whitespace-nowrap text-center text-xs text-gray-400 dark:text-dark-500 font-mono',
       formatter: (val: unknown) => String(val ?? '—'),
     },
   ];

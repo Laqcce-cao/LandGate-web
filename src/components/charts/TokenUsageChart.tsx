@@ -131,8 +131,8 @@ function CustomTooltip({ active, payload, label, isDark }: any) {
 
   const colors: Record<string, string> = {
     cacheReadTokens: isDark ? '#93c5fd' : '#60a5fa',
-    inputTokens:     isDark ? '#60a5fa' : '#3b82f6',
-    outputTokens:    isDark ? '#3b82f6' : '#2563eb',
+    inputTokens:     isDark ? '#3b82f6' : '#2563eb',
+    outputTokens:    isDark ? '#60a5fa' : '#3b82f6',
   };
 
   return (
@@ -210,8 +210,8 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
 
   const colors = {
     cacheReadTokens: isDark ? '#93c5fd' : '#60a5fa',
-    inputTokens:     isDark ? '#60a5fa' : '#3b82f6',
-    outputTokens:    isDark ? '#3b82f6' : '#2563eb',
+    inputTokens:     isDark ? '#3b82f6' : '#2563eb',
+    outputTokens:    isDark ? '#60a5fa' : '#3b82f6',
   };
 
   const axisColor = isDark ? '#94a3b8' : '#64748b';
@@ -317,9 +317,9 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
                 return <span style={{ color: axisColor }}>{map[value] || value}</span>;
               }}
             />
-            <Bar dataKey="cacheReadTokens" stackId="tokens" fill={colors.cacheReadTokens} name="cacheReadTokens" barSize={isDayMode ? 24 : 32} radius={[0, 0, 0, 0]} />
             <Bar dataKey="inputTokens"     stackId="tokens" fill={colors.inputTokens}     name="inputTokens"     barSize={isDayMode ? 24 : 32} />
             <Bar dataKey="outputTokens"    stackId="tokens" fill={colors.outputTokens}    name="outputTokens"    barSize={isDayMode ? 24 : 32} />
+            <Bar dataKey="cacheReadTokens" stackId="tokens" fill={colors.cacheReadTokens} name="cacheReadTokens" barSize={isDayMode ? 24 : 32} radius={[0, 0, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </>
