@@ -21,6 +21,7 @@ const adminNavItems = [
   { path: '/admin/usage', label: '用量计费', icon: 'chartBar' as const },
   { path: '/admin/marketing', label: '营销管理', icon: 'gift' as const },
   { path: '/admin/users', label: '用户管理', icon: 'userCircle' as const },
+  { path: '/admin/api-keys', label: 'API密钥', icon: 'key' as const },
 ];
 
 const adminPersonalItems = [
