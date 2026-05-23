@@ -12,7 +12,6 @@ export interface Account {
   concurrency?: number;
   loadFactor?: number;
   priority?: number;
-  rateMultiplier?: number;
   status: string;
   errorMessage?: string;
   lastUsedAt?: string;

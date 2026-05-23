@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { groupsApi, type Group } from '../api/admin/groups';
 import { accountsApi, type Account } from '../api/admin/accounts';
+import { modelPricesApi } from '../api/admin/model-prices';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { Input } from '../components/ui/Input';
@@ -12,13 +13,6 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToastStore } from '../stores/toastStore';
 
 /* ─────────────────── helpers ─────────────────── */
-
-const platformOpts = [
-  { value: 'openai', label: 'OpenAI' },
-  { value: 'anthropic', label: 'Anthropic Claude' },
-  { value: 'gemini', label: 'Google Gemini' },
-  { value: 'antigravity', label: 'Antigravity' },
-];
 
 const subTypeOpts = [
   { value: 'standard', label: '标准版（按量计费）' },
@@ -68,10 +62,10 @@ export default function GroupsPage() {
 
   /* ─── exclude model input per group ─── */
   const [excludeInputs, setExcludeInputs] = useState<Record<number, string>>({});
+  const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
 
   /* ─── group form ─── */
   const [gfName, setGfName] = useState('');
-  const [gfPlatform, setGfPlatform] = useState('openai');
   const [gfDesc, setGfDesc] = useState('');
   const [gfRate, setGfRate] = useState('1.0');
   const [gfSubType, setGfSubType] = useState('standard');
@@ -113,6 +107,18 @@ export default function GroupsPage() {
 
   useEffect(() => {
     fetchAll().finally(() => setLoading(false));
+    // 拉取模型价格列表，提取唯一模型名作为排除模型下拉选项
+    modelPricesApi.list(0, 500).then(({ data }) => {
+      const seen = new Set<string>();
+      const opts: { value: string; label: string }[] = [];
+      (data.prices ?? []).forEach((p) => {
+        if (!seen.has(p.model)) {
+          seen.add(p.model);
+          opts.push({ value: p.model, label: p.model });
+        }
+      });
+      setModelOptions(opts);
+    }).catch(() => { /* 非关键请求，静默失败 */ });
   }, [fetchAll]);
 
   /* ─── derive ─── */
@@ -126,7 +132,6 @@ export default function GroupsPage() {
   const openCreateGroup = () => {
     setEditTarget(null);
     setGfName('');
-    setGfPlatform('openai');
     setGfDesc('');
     setGfRate('1.0');
     setGfSubType('standard');
@@ -138,7 +143,6 @@ export default function GroupsPage() {
   const openEditGroup = (g: Group) => {
     setEditTarget(g);
     setGfName(g.name);
-    setGfPlatform(g.platform ?? 'openai');
     setGfDesc(g.description ?? '');
     setGfRate(String(g.rateMultiplier ?? 1.0));
     setGfSubType(g.subscriptionType ?? 'standard');
@@ -153,7 +157,6 @@ export default function GroupsPage() {
     try {
       const payload = {
         name: gfName.trim(),
-        platform: gfPlatform,
         description: gfDesc,
         rateMultiplier: Number(gfRate) || 1.0,
         subscriptionType: gfSubType,
@@ -318,11 +321,6 @@ export default function GroupsPage() {
                   className="shrink-0 text-gray-400"
                 />
                 <span className="font-semibold text-gray-900 dark:text-white">{g.name}</span>
-                <span
-                  className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[g.platform ?? ''] ?? 'bg-gray-100 text-gray-600'}`}
-                >
-                  {g.platform ?? '—'}
-                </span>
                 <span className="text-xs text-gray-400 dark:text-dark-500">
                   倍率 ×{g.rateMultiplier ?? 1}
                 </span>
@@ -423,12 +421,15 @@ export default function GroupsPage() {
                             </div>
                           )}
                           <div className="flex gap-2">
-                            <Input
-                              placeholder="输入模型名，如 claude-opus-4"
+                            <Select
+                              options={modelOptions}
                               value={excludeInputs[g.id] ?? ''}
-                              onChange={(e) =>
-                                setExcludeInputs((prev) => ({ ...prev, [g.id]: e.target.value }))
+                              onChange={(v) =>
+                                setExcludeInputs((prev) => ({ ...prev, [g.id]: v }))
                               }
+                              placeholder="选择已有模型..."
+                              searchable
+                              emptyText="无匹配模型"
                               className="flex-1"
                             />
                             <Button
@@ -472,15 +473,9 @@ export default function GroupsPage() {
       >
         <div className="space-y-4">
           <Input label="名称" value={gfName} onChange={(e) => setGfName(e.target.value)} placeholder="输入分组名称" />
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="input-label">平台</label>
-              <Select options={platformOpts} value={gfPlatform} onChange={setGfPlatform} />
-            </div>
-            <div>
-              <label className="input-label">订阅类型</label>
-              <Select options={subTypeOpts} value={gfSubType} onChange={setGfSubType} />
-            </div>
+          <div>
+            <label className="input-label">订阅类型</label>
+            <Select options={subTypeOpts} value={gfSubType} onChange={setGfSubType} />
           </div>
           <Input label="描述" value={gfDesc} onChange={(e) => setGfDesc(e.target.value)} placeholder="可选" />
           <div className="grid grid-cols-3 gap-3">

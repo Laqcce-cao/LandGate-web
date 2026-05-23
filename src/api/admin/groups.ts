@@ -7,7 +7,6 @@ export interface Group {
   rateMultiplier?: number;
   isExclusive?: boolean;
   status: string;
-  platform?: string;
   subscriptionType?: string;
   dailyLimitUsd?: number;
   weeklyLimitUsd?: number;
@@ -21,7 +20,6 @@ export interface Group {
   modelRouting?: string;
   modelRoutingEnabled?: boolean;
   mcpXmlInject?: string;
-  supportedModelScopes?: string;
   sortOrder?: number;
   allowMessagesDispatch?: boolean;
   requireOauthOnly?: boolean;

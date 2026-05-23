@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { accountsApi, type Account } from '../api/admin/accounts';
+import { modelPricesApi } from '../api/admin/model-prices';
 import { oauthApi } from '../api/admin/oauth';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -83,6 +84,8 @@ export default function AccountsPage() {
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [modelInputs, setModelInputs] = useState<Record<number, string>>({});
+  const [baselineModels, setBaselineModels] = useState<Record<number, string[]>>({});
+  const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
   const addToast = useToastStore((s) => s.addToast);
 
   // ---- 基础字段 ----
@@ -92,7 +95,6 @@ export default function AccountsPage() {
   const [statusForm, setStatusForm] = useState('ACTIVE');
   const [concurrency, setConcurrency] = useState(3);
   const [priority, setPriority] = useState(50);
-  const [rateMultiplier, setRateMultiplier] = useState('1.0');
 
   // ---- 凭证 & extra ----
   const [credValues, setCredValues] = useState<Record<string, string>>(buildEmptyCredValues('api_key'));
@@ -259,6 +261,18 @@ export default function AccountsPage() {
 
   useEffect(() => {
     fetchAccounts().finally(() => setLoading(false));
+    // 拉取模型价格列表，提取唯一模型名作为下拉选项
+    modelPricesApi.list(0, 500).then(({ data }) => {
+      const seen = new Set<string>();
+      const opts: { value: string; label: string }[] = [];
+      (data.prices ?? []).forEach((p) => {
+        if (!seen.has(p.model)) {
+          seen.add(p.model);
+          opts.push({ value: p.model, label: p.model });
+        }
+      });
+      setModelOptions(opts);
+    }).catch(() => { /* 非关键请求，静默失败 */ });
   }, [fetchAccounts]);
 
   // ---- 监听 OAuth 回调窗口的 postMessage ----
@@ -296,7 +310,6 @@ export default function AccountsPage() {
     setExtraBaseUrl('');
     setConcurrency(3);
     setPriority(50);
-    setRateMultiplier('1.0');
     setModalOpen(true);
   };
 
@@ -323,7 +336,6 @@ export default function AccountsPage() {
 
     setConcurrency(account.concurrency ?? 3);
     setPriority(account.priority ?? 50);
-    setRateMultiplier(String(account.rateMultiplier ?? 1.0));
     setModalOpen(true);
   };
 
@@ -352,7 +364,6 @@ export default function AccountsPage() {
         extra: JSON.stringify(extra),
         concurrency,
         priority,
-        rateMultiplier: Number(rateMultiplier) || 1.0,
       };
       if (editTarget) {
         await accountsApi.update(editTarget.id, payload);
@@ -414,8 +425,45 @@ export default function AccountsPage() {
     if (!a) return;
     const current = parseSupportedModels(a);
     if (current.includes(trimmed)) return;
+
+    // 选"全部"(*)时：将当前模型缓存到 baselineModels，DB 只存 ["*"]
+    if (trimmed === '*') {
+      const baseline = current.filter((m) => m !== '*');
+      setBaselineModels((prev) => ({ ...prev, [accountId]: baseline }));
+      const updated = JSON.stringify(['*']);
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
+      );
+      setModelInputs((prev) => ({ ...prev, [accountId]: '' }));
+      try {
+        await accountsApi.update(accountId, { supportedModels: updated });
+        addToast({ type: 'success', message: '已切换为支持所有模型' });
+      } catch {
+        setAccounts((prev) =>
+          prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: a.supportedModels ?? undefined } : acc)),
+        );
+        setBaselineModels((prev) => {
+          const next = { ...prev };
+          delete next[accountId];
+          return next;
+        });
+        addToast({ type: 'error', message: '操作失败' });
+      }
+      return;
+    }
+
+    // "*" 已激活时添加具体模型 → 仅修改 baselineModels，不写 DB
+    if (current.includes('*')) {
+      const baseline = baselineModels[accountId] ?? [];
+      if (baseline.includes(trimmed)) return;
+      setBaselineModels((prev) => ({ ...prev, [accountId]: [...baseline, trimmed] }));
+      setModelInputs((prev) => ({ ...prev, [accountId]: '' }));
+      addToast({ type: 'success', message: `已暂存模型: ${trimmed}（移除"全部"后生效）` });
+      return;
+    }
+
+    // 普通模式：直接添加到 supportedModels 并保存
     const updated = JSON.stringify([...current, trimmed]);
-    // optimistic update
     setAccounts((prev) =>
       prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
     );
@@ -435,8 +483,42 @@ export default function AccountsPage() {
     const a = accounts.find((acc) => acc.id === accountId);
     if (!a) return;
     const current = parseSupportedModels(a);
+
+    // 移除"全部"(*)时：将 baselineModels 恢复到 DB
+    if (model === '*') {
+      const baseline = baselineModels[accountId] ?? [];
+      const updated = JSON.stringify(baseline);
+      const previousSupported = a.supportedModels;
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
+      );
+      setBaselineModels((prev) => {
+        const next = { ...prev };
+        delete next[accountId];
+        return next;
+      });
+      try {
+        await accountsApi.update(accountId, { supportedModels: updated });
+        addToast({ type: 'success', message: baseline.length > 0 ? '已恢复具体模型' : '已移除通配符' });
+      } catch {
+        setAccounts((prev) =>
+          prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: previousSupported ?? undefined } : acc)),
+        );
+        addToast({ type: 'error', message: '操作失败' });
+      }
+      return;
+    }
+
+    // "*" 激活时移除具体模型 → 仅从 baselineModels 移除，不写 DB
+    if (current.includes('*')) {
+      const baseline = baselineModels[accountId] ?? [];
+      setBaselineModels((prev) => ({ ...prev, [accountId]: baseline.filter((m) => m !== model) }));
+      addToast({ type: 'success', message: `已移除暂存模型: ${model}` });
+      return;
+    }
+
+    // 普通模式：直接从 supportedModels 移除并保存
     const updated = JSON.stringify(current.filter((m) => m !== model));
-    // optimistic update
     setAccounts((prev) =>
       prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
     );
@@ -537,7 +619,7 @@ export default function AccountsPage() {
                   </span>
                   <span className="text-xs text-gray-400 dark:text-dark-500">{a.type}</span>
                   <span className="text-xs text-gray-400 dark:text-dark-500">
-                    并发 {a.concurrency ?? 3} · 倍率 ×{a.rateMultiplier ?? 1}
+                    并发 {a.concurrency ?? 3}
                   </span>
                   <StatusBadge status={a.status ?? 'ACTIVE'} />
                   <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
@@ -568,41 +650,99 @@ export default function AccountsPage() {
                           ✅ 支持模型（白名单）
                         </span>
                       </div>
-                      {supportedModels.length === 0 ? (
-                        <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
-                          未设置 — 添加模型名以限制该号只路由这些模型的请求（留空表示支持所有模型）
-                        </p>
-                      ) : (
-                        <div className="mb-2 space-y-1">
-                          {supportedModels.map((m) => (
-                            <div
-                              key={m}
-                              className="flex items-center gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm dark:bg-green-900/10"
-                            >
-                              <span className="font-medium text-green-700 dark:text-green-400 min-w-0 truncate flex-1">
-                                {m}
-                              </span>
-                              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] text-green-600 dark:bg-green-900/30 dark:text-green-400">
-                                已支持
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeSupportedModel(a.id, m)}
-                              >
-                                <Icon name="x" size="xs" className="text-red-400" />
-                              </Button>
+                      {(() => {
+                        // null / "" / "[]" → 未配置，不可用
+                        const raw = a.supportedModels;
+                        if (raw == null || raw === '' || raw === '[]') {
+                          return (
+                            <p className="py-2 text-center text-xs text-amber-600 dark:text-amber-400">
+                              未配置 — 该账号不会被选中路由。添加 "*" 表示支持所有模型，或添加具体模型名限制路由范围
+                            </p>
+                          );
+                        }
+                        // ["*"] → 通配符，支持所有模型
+                        if (supportedModels.length === 1 && supportedModels[0] === '*') {
+                          const baseline = baselineModels[a.id] ?? [];
+                          return (
+                            <div className="mb-2">
+                              <div className="flex items-center gap-2 rounded-lg bg-blue-50 px-3 py-2 text-sm dark:bg-blue-900/10">
+                                <span className="font-medium text-blue-700 dark:text-blue-400">
+                                  * 支持所有模型
+                                </span>
+                                <span className="rounded bg-blue-100 px-1.5 py-0.5 text-[10px] text-blue-600 dark:bg-blue-900/30 dark:text-blue-400">
+                                  通配符
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeSupportedModel(a.id, '*')}
+                                  className="ml-auto inline-flex h-5 w-5 items-center justify-center rounded-full text-blue-500 hover:bg-red-100 hover:text-red-500 transition-colors"
+                                >
+                                  ×
+                                </button>
+                              </div>
+                              {baseline.length > 0 && (
+                                <div className="mt-2 rounded-lg border border-dashed border-gray-200 dark:border-dark-600 px-3 py-2">
+                                  <p className="text-xs text-gray-400 mb-1.5">
+                                    移除"全部"后将恢复以下模型：
+                                  </p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {baseline.map((m) => (
+                                      <span
+                                        key={m}
+                                        className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-xs text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+                                      >
+                                        {m}
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setBaselineModels((prev) => ({
+                                              ...prev,
+                                              [a.id]: (prev[a.id] ?? []).filter((x) => x !== m),
+                                            }));
+                                          }}
+                                          className="inline-flex h-4 w-4 items-center justify-center rounded-full text-gray-400 hover:bg-red-100 hover:text-red-500 transition-colors"
+                                        >
+                                          ×
+                                        </button>
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          ))}
-                        </div>
-                      )}
+                          );
+                        }
+                        // 具体模型白名单
+                        return (
+                          <div className="mb-2 flex flex-wrap gap-1.5">
+                            {supportedModels.map((m) => (
+                              <span
+                                key={m}
+                                className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 dark:bg-green-900/10 dark:text-green-400"
+                              >
+                                {m}
+                                <button
+                                  type="button"
+                                  onClick={() => removeSupportedModel(a.id, m)}
+                                  className="inline-flex h-4 w-4 items-center justify-center rounded-full text-green-500 hover:bg-red-100 hover:text-red-500 transition-colors"
+                                >
+                                  ×
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                       <div className="flex gap-2">
-                        <Input
-                          placeholder="输入模型名，如 claude-sonnet-4"
+                        <Select
+                          options={[{ value: '*', label: '* 全部（支持所有模型）' }, ...modelOptions]}
                           value={modelInputs[a.id] ?? ''}
-                          onChange={(e) =>
-                            setModelInputs((prev) => ({ ...prev, [a.id]: e.target.value }))
+                          onChange={(v) =>
+                            setModelInputs((prev) => ({ ...prev, [a.id]: v }))
                           }
+                          placeholder="选择已有模型..."
+                          searchable
+                          emptyText="无匹配模型"
                           className="flex-1"
                         />
                         <Button
@@ -651,7 +791,7 @@ export default function AccountsPage() {
           </div>
 
           {/* 调度参数 */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label="并发上限"
               type="number"
@@ -663,13 +803,6 @@ export default function AccountsPage() {
               type="number"
               value={String(priority)}
               onChange={(e) => setPriority(Number(e.target.value) || 0)}
-            />
-            <Input
-              label="费率系数"
-              type="number"
-              value={rateMultiplier}
-              onChange={(e) => setRateMultiplier(e.target.value)}
-              placeholder="1.0"
             />
           </div>
 

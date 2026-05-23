@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { modelPricesApi, type ModelPrice } from '../api/admin/model-prices';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
@@ -10,11 +10,22 @@ import { Icon } from '../components/ui/Icon';
 import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { useToastStore } from '../stores/toastStore';
 
+// ---------------------------------------------------------------------------
+// 常量
+// ---------------------------------------------------------------------------
 const PLATFORM_OPTIONS = [
   { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic Claude' },
   { value: 'gemini', label: 'Google Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
+];
+
+const TABS = [
+  { key: 'all', label: '全部' },
+  { key: 'openai', label: 'OpenAI' },
+  { key: 'anthropic', label: 'Anthropic' },
+  { key: 'gemini', label: 'Gemini' },
+  { key: 'antigravity', label: 'Antigravity' },
 ];
 
 const platformBadge: Record<string, string> = {
@@ -24,6 +35,14 @@ const platformBadge: Record<string, string> = {
   antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
+const fmtPrice = (val: unknown) => {
+  const n = Number(val ?? 0);
+  if (n === 0) return <span className="text-gray-300 dark:text-dark-600">—</span>;
+  return <span className="tabular-nums">${n.toFixed(2)}</span>;
+};
+
+// ---------------------------------------------------------------------------
+
 export default function ModelPricesPage() {
   const [prices, setPrices] = useState<ModelPrice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,18 +50,24 @@ export default function ModelPricesPage() {
   const [editTarget, setEditTarget] = useState<ModelPrice | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ModelPrice | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activePlatform, setActivePlatform] = useState('all');
+  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const addToast = useToastStore((s) => s.addToast);
 
-  // Form
+  // ---- 表单状态 ----
   const [formModel, setFormModel] = useState('');
   const [formPlatform, setFormPlatform] = useState('anthropic');
   const [formInputPrice, setFormInputPrice] = useState('0');
   const [formOutputPrice, setFormOutputPrice] = useState('0');
   const [formCacheWritePrice, setFormCacheWritePrice] = useState('0');
   const [formCacheReadPrice, setFormCacheReadPrice] = useState('0');
-  const [formGroupId, setFormGroupId] = useState('');
+  const [formCacheWrite5mPrice, setFormCacheWrite5mPrice] = useState('0');
+  const [formCacheWrite1hPrice, setFormCacheWrite1hPrice] = useState('0');
+  const [formSupportsCacheBreakdown, setFormSupportsCacheBreakdown] = useState(false);
   const [formEnabled, setFormEnabled] = useState(true);
   const [formNotes, setFormNotes] = useState('');
+  const [formCacheExpanded, setFormCacheExpanded] = useState(false);
 
   const fetchPrices = useCallback(async () => {
     try {
@@ -57,6 +82,32 @@ export default function ModelPricesPage() {
     fetchPrices().finally(() => setLoading(false));
   }, [fetchPrices]);
 
+  // ---- 客户端过滤 ----
+  const filteredPrices = useMemo(() => {
+    return prices.filter((p) => {
+      if (activePlatform !== 'all' && p.platform !== activePlatform) return false;
+      if (searchQuery && !p.model.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+      return true;
+    });
+  }, [prices, activePlatform, searchQuery]);
+
+  const toggleExpand = (id: number) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  // ---- 判断是否有缓存价格需要展示 ----
+  const hasCachePrice = (p: ModelPrice) => {
+    return (p.cacheWritePrice ?? 0) !== 0
+      || (p.cacheReadPrice ?? 0) !== 0
+      || (p.cacheWrite5mPrice ?? 0) !== 0
+      || (p.cacheWrite1hPrice ?? 0) !== 0;
+  };
+
+  // ---- CRUD 操作 ----
   const openCreate = () => {
     setEditTarget(null);
     setFormModel('');
@@ -65,9 +116,12 @@ export default function ModelPricesPage() {
     setFormOutputPrice('0');
     setFormCacheWritePrice('0');
     setFormCacheReadPrice('0');
-    setFormGroupId('');
+    setFormCacheWrite5mPrice('0');
+    setFormCacheWrite1hPrice('0');
+    setFormSupportsCacheBreakdown(false);
     setFormEnabled(true);
     setFormNotes('');
+    setFormCacheExpanded(false);
     setModalOpen(true);
   };
 
@@ -79,9 +133,16 @@ export default function ModelPricesPage() {
     setFormOutputPrice(String(p.outputPrice ?? 0));
     setFormCacheWritePrice(String(p.cacheWritePrice ?? 0));
     setFormCacheReadPrice(String(p.cacheReadPrice ?? 0));
-    setFormGroupId(p.groupId != null ? String(p.groupId) : '');
+    setFormCacheWrite5mPrice(String(p.cacheWrite5mPrice ?? 0));
+    setFormCacheWrite1hPrice(String(p.cacheWrite1hPrice ?? 0));
+    setFormSupportsCacheBreakdown(p.supportsCacheBreakdown ?? false);
     setFormEnabled(p.enabled ?? true);
     setFormNotes(p.notes ?? '');
+    // 如果编辑的价格有缓存数据，默认展开缓存区域
+    setFormCacheExpanded(
+      (p.cacheWritePrice ?? 0) !== 0 || (p.cacheReadPrice ?? 0) !== 0
+      || (p.cacheWrite5mPrice ?? 0) !== 0 || (p.cacheWrite1hPrice ?? 0) !== 0
+    );
     setModalOpen(true);
   };
 
@@ -96,7 +157,9 @@ export default function ModelPricesPage() {
         outputPrice: Number(formOutputPrice) || 0,
         cacheWritePrice: Number(formCacheWritePrice) || 0,
         cacheReadPrice: Number(formCacheReadPrice) || 0,
-        groupId: formGroupId ? Number(formGroupId) : null,
+        cacheWrite5mPrice: Number(formCacheWrite5mPrice) || 0,
+        cacheWrite1hPrice: Number(formCacheWrite1hPrice) || 0,
+        supportsCacheBreakdown: formSupportsCacheBreakdown,
         enabled: formEnabled,
         notes: formNotes || undefined,
       };
@@ -138,12 +201,6 @@ export default function ModelPricesPage() {
     }
   };
 
-  const fmtPrice = (val: unknown) => {
-    const n = Number(val ?? 0);
-    if (n === 0) return <span className="text-gray-300 dark:text-dark-600">—</span>;
-    return <span className="tabular-nums">${n.toFixed(2)}</span>;
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-24">
@@ -154,45 +211,59 @@ export default function ModelPricesPage() {
 
   return (
     <div>
-      {/* header */}
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500 dark:text-dark-400">
-          共 {prices.length} 个模型价格
+      {/* ── header ── */}
+      <div className="mb-4 flex items-center justify-between gap-4">
+        <p className="text-sm text-gray-500 dark:text-dark-400 shrink-0">
+          共 {filteredPrices.length} 个模型价格
         </p>
+        <div className="flex items-center gap-3 flex-1 max-w-md">
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="搜索模型名称..."
+          />
+        </div>
         <Button onClick={openCreate}>
           <Icon name="plus" size="sm" /> 新增价格
         </Button>
       </div>
 
-      {/* table */}
+      {/* ── platform tabs ── */}
+      <div className="mb-3 flex gap-1 border-b border-gray-200 dark:border-dark-700">
+        {TABS.map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => setActivePlatform(tab.key)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
+              activePlatform === tab.key
+                ? 'border-violet-500 text-violet-600 dark:text-violet-400'
+                : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-300'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── table ── */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-dark-700">
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-8" />
+                <th className="px-0 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   模型
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   平台
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                  分组
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   输入 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   输出 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                  缓存写 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
-                </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                  缓存读 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
-                </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                  备注
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-16">
                   启用
@@ -203,90 +274,115 @@ export default function ModelPricesPage() {
               </tr>
             </thead>
             <tbody>
-              {prices.length === 0 ? (
+              {filteredPrices.length === 0 ? (
                 <tr>
-                  <td colSpan={10} className="px-5 py-16 text-center">
+                  <td colSpan={7} className="px-5 py-16 text-center">
                     <Icon name="grid" size="xl" className="mx-auto mb-3 text-gray-200 dark:text-dark-700" />
-                    <p className="text-sm text-gray-400 dark:text-dark-500">暂无模型价格</p>
+                    <p className="text-sm text-gray-400 dark:text-dark-500">
+                      {searchQuery ? '无匹配的模型价格' : '暂无模型价格'}
+                    </p>
                   </td>
                 </tr>
               ) : (
-                prices.map((p) => (
-                  <tr
-                    key={p.id}
-                    className="border-b border-gray-50 dark:border-dark-800/50 hover:bg-gray-50/50 dark:hover:bg-dark-800/30 transition-colors"
-                  >
-                    {/* 模型 */}
-                    <td className="px-5 py-3.5">
-                      <span className="font-medium text-gray-900 dark:text-white">{p.model}</span>
-                    </td>
+                filteredPrices.map((p) => {
+                  const open = expandedRows.has(p.id);
+                  const showCache = hasCachePrice(p);
+                  return (
+                    <tr
+                      key={p.id}
+                      className="border-b border-gray-50 dark:border-dark-800/50 hover:bg-gray-50/50 dark:hover:bg-dark-800/30 transition-colors"
+                    >
+                      {/* 展开按钮 */}
+                      <td className="px-5 py-3.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(p.id)}
+                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                        >
+                          <Icon name={open ? 'chevronDown' : 'chevronRight'} size="sm" />
+                        </button>
+                      </td>
 
-                    {/* 平台 */}
-                    <td className="px-4 py-3.5">
-                      <span
-                        className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[p.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
-                      >
-                        {p.platform}
-                      </span>
-                    </td>
+                      {/* 模型 */}
+                      <td className="px-0 py-3.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(p.id)}
+                          className="font-medium text-gray-900 dark:text-white hover:text-violet-600 transition-colors text-left"
+                        >
+                          {p.model}
+                        </button>
+                        {/* 展开行: 缓存价格 + 备注 */}
+                        {open && (
+                          <div className="mt-2 py-2 border-t border-gray-100 dark:border-dark-700">
+                            {showCache && (
+                              <div className="mb-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
+                                <span>缓存写: {fmtPrice(p.cacheWritePrice)}</span>
+                                <span>缓存读: {fmtPrice(p.cacheReadPrice)}</span>
+                                {(p.cacheWrite5mPrice ?? 0) !== 0 && <span>缓存写5m: {fmtPrice(p.cacheWrite5mPrice)}</span>}
+                                {(p.cacheWrite1hPrice ?? 0) !== 0 && <span>缓存写1h: {fmtPrice(p.cacheWrite1hPrice)}</span>}
+                                {p.supportsCacheBreakdown && (
+                                  <span className="rounded bg-violet-100 dark:bg-violet-900/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
+                                    支持分层
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {p.notes && (
+                              <p className="text-xs text-gray-400 dark:text-dark-500 mt-1">
+                                备注: {p.notes}
+                              </p>
+                            )}
+                            {!showCache && !p.notes && (
+                              <p className="text-xs text-gray-300 dark:text-dark-600">无额外信息</p>
+                            )}
+                          </div>
+                        )}
+                      </td>
 
-                    {/* 分组 */}
-                    <td className="px-4 py-3.5">
-                      {p.groupId != null ? (
-                        <span className="text-xs text-gray-500 dark:text-dark-400">ID:{p.groupId}</span>
-                      ) : (
-                        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:bg-amber-900/20 dark:text-amber-400">
-                          全局
+                      {/* 平台 */}
+                      <td className="px-4 py-3.5">
+                        <span
+                          className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[p.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                        >
+                          {p.platform}
                         </span>
-                      )}
-                    </td>
+                      </td>
 
-                    {/* 输入价格 */}
-                    <td className="px-4 py-3.5 text-right">{fmtPrice(p.inputPrice)}</td>
+                      {/* 输入价格 */}
+                      <td className="px-4 py-3.5 text-right">{fmtPrice(p.inputPrice)}</td>
 
-                    {/* 输出价格 */}
-                    <td className="px-4 py-3.5 text-right">{fmtPrice(p.outputPrice)}</td>
+                      {/* 输出价格 */}
+                      <td className="px-4 py-3.5 text-right">{fmtPrice(p.outputPrice)}</td>
 
-                    {/* 缓存写 */}
-                    <td className="px-4 py-3.5 text-right">{fmtPrice(p.cacheWritePrice)}</td>
+                      {/* 启用 */}
+                      <td className="px-4 py-3.5">
+                        <div className="flex justify-center">
+                          <Toggle checked={p.enabled ?? true} onChange={() => handleToggleEnabled(p)} />
+                        </div>
+                      </td>
 
-                    {/* 缓存读 */}
-                    <td className="px-4 py-3.5 text-right">{fmtPrice(p.cacheReadPrice)}</td>
-
-                    {/* 备注 */}
-                    <td className="px-4 py-3.5 max-w-[120px]">
-                      <span className="truncate block text-xs text-gray-400 dark:text-dark-500">
-                        {p.notes || '—'}
-                      </span>
-                    </td>
-
-                    {/* 启用 */}
-                    <td className="px-4 py-3.5">
-                      <div className="flex justify-center">
-                        <Toggle checked={p.enabled ?? true} onChange={() => handleToggleEnabled(p)} />
-                      </div>
-                    </td>
-
-                    {/* 操作 */}
-                    <td className="px-5 py-3.5">
-                      <div className="flex items-center justify-end gap-1">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
-                          <Icon name="edit" size="xs" />
-                        </Button>
-                        <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(p)}>
-                          <Icon name="trash" size="xs" className="text-red-500" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                      {/* 操作 */}
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                            <Icon name="edit" size="xs" />
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(p)}>
+                            <Icon name="trash" size="xs" className="text-red-500" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {/* ═══ Create/Edit Modal ═══ */}
+      {/* ── Create/Edit Modal ── */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -299,33 +395,78 @@ export default function ModelPricesPage() {
           </div>
         }
       >
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="模型名称" value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="如 gpt-4o, claude-sonnet-4" />
-            <div>
-              <label className="input-label">平台</label>
-              <Select options={PLATFORM_OPTIONS} value={formPlatform} onChange={setFormPlatform} />
+        <div className="space-y-5">
+          {/* 基本信息 */}
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              基本信息
+            </legend>
+            <div className="mt-1 grid grid-cols-2 gap-3">
+              <div>
+                <label className="input-label">模型名称</label>
+                <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="如 gpt-4o, claude-sonnet-4" />
+              </div>
+              <div>
+                <label className="input-label">平台</label>
+                <Select options={PLATFORM_OPTIONS} value={formPlatform} onChange={setFormPlatform} />
+              </div>
             </div>
-          </div>
+          </fieldset>
 
-          <Input label="分组 ID" type="number" value={formGroupId} onChange={(e) => setFormGroupId(e.target.value)} placeholder="留空 = 全局价格" />
+          {/* 基础价格 */}
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              基础价格 <span className="text-gray-400 font-normal">— $/M tokens</span>
+            </legend>
+            <div className="mt-1 grid grid-cols-2 gap-3">
+              <Input label="输入价格" type="number" value={formInputPrice} onChange={(e) => setFormInputPrice(e.target.value)} placeholder="0" />
+              <Input label="输出价格" type="number" value={formOutputPrice} onChange={(e) => setFormOutputPrice(e.target.value)} placeholder="0" />
+            </div>
+          </fieldset>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Input label="输入价格 ($/M tokens)" type="number" value={formInputPrice} onChange={(e) => setFormInputPrice(e.target.value)} placeholder="0" />
-            <Input label="输出价格 ($/M tokens)" type="number" value={formOutputPrice} onChange={(e) => setFormOutputPrice(e.target.value)} placeholder="0" />
-            <Input label="缓存写入 ($/M tokens)" type="number" value={formCacheWritePrice} onChange={(e) => setFormCacheWritePrice(e.target.value)} placeholder="0" />
-            <Input label="缓存读取 ($/M tokens)" type="number" value={formCacheReadPrice} onChange={(e) => setFormCacheReadPrice(e.target.value)} placeholder="0" />
-          </div>
+          {/* 缓存价格（可折叠） */}
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              <button
+                type="button"
+                onClick={() => setFormCacheExpanded(!formCacheExpanded)}
+                className="flex items-center gap-1 hover:text-violet-600 transition-colors"
+              >
+                <Icon name={formCacheExpanded ? 'chevronDown' : 'chevronRight'} size="sm" />
+                缓存价格 <span className="text-gray-400 font-normal">— 可选，主要用于 Anthropic</span>
+              </button>
+            </legend>
+            {formCacheExpanded && (
+              <div className="mt-2 space-y-3">
+                <div className="grid grid-cols-2 gap-3">
+                  <Input label="缓存写入" type="number" value={formCacheWritePrice} onChange={(e) => setFormCacheWritePrice(e.target.value)} placeholder="0" />
+                  <Input label="缓存读取" type="number" value={formCacheReadPrice} onChange={(e) => setFormCacheReadPrice(e.target.value)} placeholder="0" />
+                  <Input label="缓存写入(5min)" type="number" value={formCacheWrite5mPrice} onChange={(e) => setFormCacheWrite5mPrice(e.target.value)} placeholder="0" />
+                  <Input label="缓存写入(1h)" type="number" value={formCacheWrite1hPrice} onChange={(e) => setFormCacheWrite1hPrice(e.target.value)} placeholder="0" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Toggle checked={formSupportsCacheBreakdown} onChange={setFormSupportsCacheBreakdown} label="支持缓存分层计费（5min/1h）" />
+                </div>
+              </div>
+            )}
+          </fieldset>
 
-          <div className="flex items-center gap-3">
-            <Toggle checked={formEnabled} onChange={setFormEnabled} label="启用" />
-          </div>
-
-          <Input label="备注" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="可选" />
+          {/* 其他 */}
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              其他
+            </legend>
+            <div className="mt-1 space-y-3">
+              <div className="flex items-center gap-3">
+                <Toggle checked={formEnabled} onChange={setFormEnabled} label="启用" />
+              </div>
+              <Input label="备注" value={formNotes} onChange={(e) => setFormNotes(e.target.value)} placeholder="可选" />
+            </div>
+          </fieldset>
         </div>
       </Modal>
 
-      {/* ═══ Delete Confirm ═══ */}
+      {/* ── Delete Confirm ── */}
       <ConfirmDialog
         open={!!deleteTarget}
         onConfirm={handleDelete}
