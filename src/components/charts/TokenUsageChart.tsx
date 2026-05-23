@@ -3,8 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts';
-import type { UsageLog, UsageListResponse } from '../../api/admin/usage';
-import { Select } from '../ui/Select';
+import { usageApi, type DailyUsageStats } from '../../api/admin/usage';
 import { Tabs } from '../ui/Tabs';
 import { Skeleton } from '../ui/Skeleton';
 import { Icon } from '../ui/Icon';
@@ -12,25 +11,18 @@ import { useThemeStore } from '../../stores/themeStore';
 import { useToastStore } from '../../stores/toastStore';
 
 interface TokenUsageData {
-  label: string;       // display label on X axis (e.g. "5/15", "3月")
-  timestamp: number;   // for sorting
+  label: string;
+  timestamp: number;
   cacheReadTokens: number;
   inputTokens: number;
   outputTokens: number;
 }
 
-interface TokenUsageChartProps {
-  fetchLogs: (page: number, size: number) => Promise<{ data: UsageListResponse }>;
-  title?: string;
-}
-
-type TimeMode = '7d' | '30d' | '3m' | '6m';
+type TimeMode = '7d' | '30d';
 
 const MODES: { key: TimeMode; label: string }[] = [
   { key: '7d',  label: '近7天' },
   { key: '30d', label: '近30天' },
-  { key: '3m',  label: '近3月' },
-  { key: '6m',  label: '近6月' },
 ];
 
 function formatCompactNumber(n: number): string {
@@ -40,21 +32,35 @@ function formatCompactNumber(n: number): string {
 }
 
 /**
- * Aggregate logs into day buckets (for 7d / 30d).
- * Zeros are filled for days with no data.
+ * 根据选中的时间模式计算 start/end 日期字符串（yyyy-MM-dd）。
+ * end 取明天（不包含），保证当天数据也被纳入。
  */
-function aggregateByDay(logs: UsageLog[], days: number, selectedModel: string): TokenUsageData[] {
+function computeDateRange(mode: TimeMode): { start: string; end: string } {
   const now = new Date();
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - days + 1);
-  cutoff.setHours(0, 0, 0, 0);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const days = mode === '7d' ? 7 : 30;
+  const start = new Date(end);
+  start.setDate(end.getDate() - days);
 
-  // Create empty buckets for every day
-  const buckets: TokenUsageData[] = [];
+  const fmt = (d: Date) => d.toISOString().slice(0, 10);
+  return { start: fmt(start), end: fmt(end) };
+}
+
+/**
+ * 将后端返回的 DailyUsageStats[] 转换为图表可用数据，并补零填满所有日期。
+ */
+function fillChartData(stats: DailyUsageStats[], mode: TimeMode): TokenUsageData[] {
+  const days = mode === '7d' ? 7 : 30;
+  const { start } = computeDateRange(mode);
+  const startDate = new Date(start);
+
+  // 创建每一天的空桶
+  const buckets: Map<string, TokenUsageData> = new Map();
   for (let i = 0; i < days; i++) {
-    const d = new Date(cutoff);
-    d.setDate(cutoff.getDate() + i);
-    buckets.push({
+    const d = new Date(startDate);
+    d.setDate(startDate.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    buckets.set(key, {
       label: `${d.getMonth() + 1}/${d.getDate()}`,
       timestamp: d.getTime(),
       cacheReadTokens: 0,
@@ -63,64 +69,25 @@ function aggregateByDay(logs: UsageLog[], days: number, selectedModel: string): 
     });
   }
 
-  for (const log of logs) {
-    if (!log.createdAt) continue;
-    const logDate = new Date(log.createdAt);
-    if (logDate < cutoff) continue;
-    if (selectedModel !== '__all__' && (log.model || 'unknown') !== selectedModel) continue;
-
-    const idx = Math.floor((logDate.getTime() - cutoff.getTime()) / (24 * 60 * 60 * 1000));
-    if (idx < 0 || idx >= days) continue;
-
-    buckets[idx].inputTokens     += log.inputTokens ?? 0;
-    buckets[idx].outputTokens    += log.outputTokens ?? 0;
-    buckets[idx].cacheReadTokens += log.cacheReadTokens ?? 0;
+  // 填充后端返回的实际数据
+  for (const s of stats) {
+    const bucket = buckets.get(s.date);
+    if (bucket) {
+      bucket.inputTokens += s.inputTokens ?? 0;
+      bucket.outputTokens += s.outputTokens ?? 0;
+      bucket.cacheReadTokens += s.cacheReadTokens ?? 0;
+    }
   }
 
-  return buckets;
+  return Array.from(buckets.values());
 }
 
-/**
- * Aggregate logs into month buckets (for 3m / 6m).
- * Zeros are filled for months with no data.
- */
-function aggregateByMonth(logs: UsageLog[], months: number, selectedModel: string): TokenUsageData[] {
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
-  cutoff.setHours(0, 0, 0, 0);
-
-  const buckets: TokenUsageData[] = [];
-  for (let i = 0; i < months; i++) {
-    const d = new Date(cutoff.getFullYear(), cutoff.getMonth() + i, 1);
-    buckets.push({
-      label: `${d.getMonth() + 1}月`,
-      timestamp: d.getTime(),
-      cacheReadTokens: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-    });
-  }
-
-  for (const log of logs) {
-    if (!log.createdAt) continue;
-    const logDate = new Date(log.createdAt);
-    if (logDate < cutoff) continue;
-    if (selectedModel !== '__all__' && (log.model || 'unknown') !== selectedModel) continue;
-
-    const idx =
-      (logDate.getFullYear() - cutoff.getFullYear()) * 12 +
-      (logDate.getMonth() - cutoff.getMonth());
-    if (idx < 0 || idx >= months) continue;
-
-    buckets[idx].inputTokens     += log.inputTokens ?? 0;
-    buckets[idx].outputTokens    += log.outputTokens ?? 0;
-    buckets[idx].cacheReadTokens += log.cacheReadTokens ?? 0;
-  }
-
-  return buckets;
-}
-
-function CustomTooltip({ active, payload, label, isDark }: any) {
+function CustomTooltip({ active, payload, label, isDark }: {
+  active?: boolean;
+  payload?: Array<{ dataKey: string; value: number }>;
+  label?: string;
+  isDark: boolean;
+}) {
   if (!active || !payload || payload.length === 0) return null;
 
   const nameMap: Record<string, string> = {
@@ -138,7 +105,7 @@ function CustomTooltip({ active, payload, label, isDark }: any) {
   return (
     <div className="card rounded-lg px-3 py-2 text-xs shadow-lg border border-gray-100 dark:border-dark-700">
       <p className="mb-1 font-medium text-gray-800 dark:text-dark-200">{label}</p>
-      {payload.map((entry: any) => (
+      {payload.map((entry) => (
         <div key={entry.dataKey} className="flex items-center gap-2 text-gray-600 dark:text-dark-400">
           <span
             className="inline-block h-2.5 w-2.5 rounded-sm"
@@ -154,12 +121,22 @@ function CustomTooltip({ active, payload, label, isDark }: any) {
   );
 }
 
-export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsageChartProps) {
-  const [logs, setLogs] = useState<UsageLog[]>([]);
+interface TokenUsageChartProps {
+  title?: string;
+}
+
+/**
+ * Token 用量趋势图表。
+ * <p>
+ * 根据用户选择的时间范围（7d / 30d）调用后端聚合接口
+ * {@code GET /api/v1/user/usage/my/stats}，后端直接返回按天分组的数据，
+ * 避免拉取原始日志后在前端二次聚合。
+ */
+export function TokenUsageChart({ title = 'Token 用量' }: TokenUsageChartProps) {
+  const [stats, setStats] = useState<DailyUsageStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [timeMode, setTimeMode] = useState<TimeMode>('7d');
-  const [selectedModel, setSelectedModel] = useState('__all__');
   const theme = useThemeStore((s) => s.theme);
   const addToast = useToastStore((s) => s.addToast);
   const isDark = theme === 'dark';
@@ -168,61 +145,40 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
     setLoading(true);
     setError(false);
     try {
-      const res = await fetchLogs(0, 200);
-      setLogs(res.data.logs ?? []);
+      const { start, end } = computeDateRange(timeMode);
+      const { data } = await usageApi.dailyStats(start, end);
+      setStats(data ?? []);
     } catch {
       setError(true);
       addToast({ type: 'error', message: '加载用量数据失败' });
     } finally {
       setLoading(false);
     }
-  }, [fetchLogs, addToast]);
+  }, [timeMode, addToast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Determine if we're in day mode or month mode
-  const isDayMode = timeMode === '7d' || timeMode === '30d';
-  const days = timeMode === '7d' ? 7 : timeMode === '30d' ? 30 : 0;
-  const months = timeMode === '3m' ? 3 : timeMode === '6m' ? 6 : 0;
+  const chartData = useMemo(
+    () => fillChartData(stats, timeMode),
+    [stats, timeMode],
+  );
 
-  const chartData = useMemo(() => {
-    if (isDayMode) {
-      return aggregateByDay(logs, days, selectedModel);
+  // 所有 token 总量
+  const totalTokens = useMemo(() => {
+    let total = 0;
+    for (const s of stats) {
+      total += (s.inputTokens ?? 0) + (s.outputTokens ?? 0) + (s.cacheReadTokens ?? 0);
     }
-    return aggregateByMonth(logs, months, selectedModel);
-  }, [logs, isDayMode, days, months, selectedModel]);
-
-  // Build model options for the dropdown
-  const modelOptions = useMemo(() => {
-    const modelSet = new Set<string>();
-    for (const l of logs) {
-      const m = (l.model || 'unknown').trim();
-      if (m) modelSet.add(m);
-    }
-    const options = [{ value: '__all__', label: '全部模型' }];
-    for (const m of Array.from(modelSet).sort()) {
-      options.push({ value: m, label: m.length > 22 ? m.slice(0, 20) + '…' : m });
-    }
-    return options;
-  }, [logs]);
+    return total;
+  }, [stats]);
 
   const colors = {
     cacheReadTokens: isDark ? '#93c5fd' : '#60a5fa',
     inputTokens:     isDark ? '#3b82f6' : '#2563eb',
     outputTokens:    isDark ? '#60a5fa' : '#3b82f6',
   };
-
-  // Total tokens from ALL fetched logs (not time-filtered), matches UsagePage stats
-  const totalTokens = useMemo(() => {
-    let total = 0;
-    for (const l of logs) {
-      if (selectedModel !== '__all__' && (l.model || 'unknown') !== selectedModel) continue;
-      total += (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0);
-    }
-    return total;
-  }, [logs, selectedModel]);
 
   const axisColor = isDark ? '#94a3b8' : '#64748b';
   const gridColor = isDark ? '#334155' : '#e2e8f0';
@@ -239,11 +195,6 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
           <div className="mb-4 flex items-center gap-4">
             <Skeleton className="h-8 w-16" />
             <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-            <Skeleton className="h-8 w-16" />
-            <div className="ml-auto">
-              <Skeleton className="h-8 w-36" />
-            </div>
           </div>
           <Skeleton className="h-72 w-full rounded-xl" />
         </>
@@ -264,7 +215,7 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
       );
     }
 
-    if (logs.length === 0) {
+    if (stats.length === 0) {
       return (
         <div className="flex flex-col items-center gap-3 py-16">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
@@ -283,14 +234,8 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
     return (
       <>
         {/* Controls row */}
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        <div className="mb-4 flex items-center">
           <Tabs items={timeTabs} activeKey={timeMode} onChange={(k) => setTimeMode(k as TimeMode)} />
-          <Select
-            options={modelOptions}
-            value={selectedModel}
-            onChange={setSelectedModel}
-            className="w-44"
-          />
         </div>
 
         {/* Chart */}
@@ -328,9 +273,9 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
                 return <span style={{ color: axisColor }}>{map[value] || value}</span>;
               }}
             />
-            <Bar dataKey="inputTokens"     stackId="tokens" fill={colors.inputTokens}     name="inputTokens"     barSize={isDayMode ? 24 : 32} />
-            <Bar dataKey="outputTokens"    stackId="tokens" fill={colors.outputTokens}    name="outputTokens"    barSize={isDayMode ? 24 : 32} />
-            <Bar dataKey="cacheReadTokens" stackId="tokens" fill={colors.cacheReadTokens} name="cacheReadTokens" barSize={isDayMode ? 24 : 32} radius={[0, 0, 0, 0]} />
+            <Bar dataKey="inputTokens"     stackId="tokens" fill={colors.inputTokens}     name="inputTokens"     barSize={24} />
+            <Bar dataKey="outputTokens"    stackId="tokens" fill={colors.outputTokens}    name="outputTokens"    barSize={24} />
+            <Bar dataKey="cacheReadTokens" stackId="tokens" fill={colors.cacheReadTokens} name="cacheReadTokens" barSize={24} radius={[0, 0, 0, 0]} />
           </BarChart>
         </ResponsiveContainer>
       </>
@@ -341,7 +286,7 @@ export function TokenUsageChart({ fetchLogs, title = 'Token 用量' }: TokenUsag
     <div className="card p-6">
       <h3 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
       <p className="mb-4 text-sm text-gray-500 dark:text-dark-400">
-        {loading || error || logs.length === 0
+        {loading || error || stats.length === 0
           ? '各时段 Token 消耗分布'
           : `共 ${formatCompactNumber(totalTokens)} tokens（${timeLabel}）`}
       </p>

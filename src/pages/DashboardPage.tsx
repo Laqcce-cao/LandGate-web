@@ -1,5 +1,4 @@
 import { useNavigate } from 'react-router-dom';
-import { usageApi } from '../api/admin/usage';
 import { Icon, type IconName } from '../components/ui/Icon';
 import { TokenUsageChart } from '../components/charts/TokenUsageChart';
 
@@ -61,10 +60,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Token usage chart */}
-      <TokenUsageChart
-        fetchLogs={(page, size) => usageApi.myUsage(page, size)}
-        title="Token 用量趋势"
-      />
+      <TokenUsageChart title="Token 用量趋势" />
     </div>
   );
 }

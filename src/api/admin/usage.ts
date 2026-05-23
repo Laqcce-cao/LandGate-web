@@ -40,6 +40,15 @@ export interface UsageListResponse {
   size: number;
 }
 
+/** 按天聚合的用量统计 */
+export interface DailyUsageStats {
+  date: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadTokens: number;
+  callCount: number;
+}
+
 export const usageApi = {
   list: (page = 0, size = 20) =>
     client.get<UsageListResponse>('/admin/usage', { params: { page, size } }),
@@ -51,4 +60,8 @@ export const usageApi = {
     client.get<UsageListResponse>(`/admin/usage/key/${apiKeyId}`, { params: { page, size } }),
   byAccount: (accountId: number, page = 0, size = 20) =>
     client.get<UsageListResponse>(`/admin/usage/account/${accountId}`, { params: { page, size } }),
+
+  /** 按天聚合当前用户的 Token 用量统计（7d / 30d） */
+  dailyStats: (start: string, end: string) =>
+    client.get<DailyUsageStats[]>('/user/usage/my/stats', { params: { start, end } }),
 };
