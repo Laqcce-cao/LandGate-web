@@ -53,19 +53,61 @@ function formatTime(val: unknown): string {
   return `${full} (${relative})`;
 }
 
+type TimePreset = '7d' | '30d' | '90d' | 'custom';
+
+const PRESETS: { key: TimePreset; label: string }[] = [
+  { key: '7d', label: '近7天' },
+  { key: '30d', label: '近30天' },
+  { key: '90d', label: '近90天' },
+  { key: 'custom', label: '自定义' },
+];
+
+function dateToStr(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+function getPresetRange(preset: TimePreset): { start: string; end: string } {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
+  const start = new Date(end);
+  start.setDate(end.getDate() - days);
+  return { start: dateToStr(start), end: dateToStr(end) };
+}
+
 export default function UsagePage() {
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
   const [statsLogs, setStatsLogs] = useState<UsageLog[]>([]);
+  const [preset, setPreset] = useState<TimePreset>('30d');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const addToast = useToastStore((s) => s.addToast);
+
+  // Derive effective date range from preset or custom
+  const dateRange = useMemo(() => {
+    if (preset === 'custom') {
+      let start = startDate || undefined;
+      let end = endDate || undefined;
+      // Adjust custom end date to be exclusive (matching preset behavior)
+      // so the selected end date is included in results
+      if (end) {
+        const d = new Date(end + 'T00:00:00');
+        d.setDate(d.getDate() + 1);
+        end = dateToStr(d);
+      }
+      return { start, end };
+    }
+    return getPresetRange(preset);
+  }, [preset, startDate, endDate]);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
       const size = 20;
-      const res = await usageApi.myUsage(page, size);
+      const res = await usageApi.myUsage(page, size, dateRange.start, dateRange.end);
       setLogs(res.data.logs ?? []);
       setTotal(res.data.total ?? 0);
     } catch {
@@ -73,18 +115,23 @@ export default function UsagePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, addToast]);
+  }, [page, dateRange, addToast]);
 
-  // Fetch larger batch for summary stats (consistent with dashboard chart)
+  // Fetch larger batch for summary stats
   useEffect(() => {
-    usageApi.myUsage(0, 200)
+    usageApi.myUsage(0, 200, dateRange.start, dateRange.end)
       .then((res) => setStatsLogs(res.data.logs ?? []))
       .catch(() => {});
-  }, []);
+  }, [dateRange]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  // Reset page when date range changes
+  useEffect(() => {
+    setPage(0);
+  }, [dateRange]);
 
   const stats = useMemo(() => {
     if (statsLogs.length === 0) return null;
@@ -93,6 +140,14 @@ export default function UsagePage() {
     const totalRequests = statsLogs.length;
     return { totalTokens, totalCost, totalRequests };
   }, [statsLogs]);
+
+  const handlePresetChange = (p: TimePreset) => {
+    setPreset(p);
+    if (p !== 'custom') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
 
   const columns = [
     {
@@ -211,6 +266,54 @@ export default function UsagePage() {
 
   return (
     <div>
+      {/* Time range filter bar */}
+      <div className="card mb-4 p-4">
+        <div className="flex flex-wrap items-center gap-4">
+          {/* Preset buttons */}
+          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-800">
+            {PRESETS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => handlePresetChange(p.key)}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  preset === p.key
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom date inputs */}
+          {preset === 'custom' && (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="input w-auto text-xs"
+              />
+              <span className="text-xs text-gray-400">至</span>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="input w-auto text-xs"
+              />
+            </div>
+          )}
+
+          {/* Active range indicator */}
+          <span className="text-xs text-gray-400 dark:text-dark-500">
+            {preset !== 'custom'
+              ? PRESETS.find((p) => p.key === preset)?.label
+              : (startDate || endDate ? `${startDate || '最早'} ~ ${endDate || '现在'}` : '全部')}
+          </span>
+        </div>
+      </div>
+
       {/* Summary Cards */}
       {stats && (
         <div className="mb-4 grid grid-cols-3 gap-3">

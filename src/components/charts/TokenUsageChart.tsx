@@ -203,7 +203,7 @@ export function TokenUsageChart({ title = 'Token 用量' }: TokenUsageChartProps
 
     if (error) {
       return (
-        <div className="flex flex-col items-center gap-3 py-16">
+        <div className="flex flex-col items-center gap-3 py-10">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-rose-100 dark:bg-rose-900/30">
             <Icon name="xCircle" size="xl" className="text-rose-500 dark:text-rose-400" />
           </div>
@@ -217,7 +217,7 @@ export function TokenUsageChart({ title = 'Token 用量' }: TokenUsageChartProps
 
     if (stats.length === 0) {
       return (
-        <div className="flex flex-col items-center gap-3 py-16">
+        <div className="flex flex-col items-center gap-3 py-10">
           <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
             <Icon name="chart" size="xl" className="text-gray-300 dark:text-dark-600" />
           </div>
@@ -283,9 +283,9 @@ export function TokenUsageChart({ title = 'Token 用量' }: TokenUsageChartProps
   };
 
   return (
-    <div className="card p-6">
-      <h3 className="mb-1 text-lg font-semibold text-gray-900 dark:text-white">{title}</h3>
-      <p className="mb-4 text-sm text-gray-500 dark:text-dark-400">
+    <div className="card p-4">
+      <h3 className="mb-0.5 text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
+      <p className="mb-3 text-sm text-gray-500 dark:text-dark-400">
         {loading || error || stats.length === 0
           ? '各时段 Token 消耗分布'
           : `共 ${formatCompactNumber(totalTokens)} tokens（${timeLabel}）`}

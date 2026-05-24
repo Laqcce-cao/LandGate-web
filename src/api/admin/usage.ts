@@ -52,8 +52,10 @@ export interface DailyUsageStats {
 export const usageApi = {
   list: (page = 0, size = 20) =>
     client.get<UsageListResponse>('/admin/usage', { params: { page, size } }),
-  myUsage: (page = 0, size = 20) =>
-    client.get<UsageListResponse>('/user/usage/my', { params: { page, size } }),
+  myUsage: (page = 0, size = 20, start?: string, end?: string) =>
+    client.get<UsageListResponse>('/user/usage/my', {
+      params: { page, size, ...(start ? { start } : {}), ...(end ? { end } : {}) },
+    }),
   byUser: (userId: number, page = 0, size = 20) =>
     client.get<UsageListResponse>(`/admin/usage/user/${userId}`, { params: { page, size } }),
   byApiKey: (apiKeyId: number, page = 0, size = 20) =>

@@ -37,6 +37,13 @@ export interface AuthResponse {
 export interface CreateApiKeyRequest {
   name: string;
   groupId?: number;
+  quota?: number;
+}
+
+export interface UpdateApiKeyRequest {
+  name?: string;
+  groupId?: number;
+  quota?: number;
 }
 
 export interface ApiKey {
@@ -46,6 +53,8 @@ export interface ApiKey {
   status: string;
   groupId?: number;
   createdAt?: string;
+  quota: number;
+  quotaUsed: number;
 }
 
 export const authApi = {
@@ -61,7 +70,9 @@ export const authApi = {
     client.put<{ message: string; username: string }>('/auth/username', { username }),
   me: () => client.get<User>('/auth/me'),
   listApiKeys: () => client.get<ApiKey[]>('/auth/api-keys'),
-  createApiKey: (data: { name: string; groupId?: number }) =>
+  createApiKey: (data: CreateApiKeyRequest) =>
     client.post<ApiKey>('/auth/api-keys', data),
+  updateApiKey: (id: number, data: UpdateApiKeyRequest) =>
+    client.put<ApiKey>(`/auth/api-keys/${id}`, data),
   deleteApiKey: (id: number) => client.delete(`/auth/api-keys/${id}`),
 };
