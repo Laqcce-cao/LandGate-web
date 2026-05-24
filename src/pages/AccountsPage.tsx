@@ -752,7 +752,7 @@ export default function AccountsPage() {
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">名称</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-28">平台</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-32">类型</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">支持模型</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-52">支持模型</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">并发</th>
                   <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">优先级</th>
                   <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-24">状态</th>
@@ -784,35 +784,32 @@ export default function AccountsPage() {
                       <td className="px-5 py-3.5">
                         <span className="text-sm text-gray-500 dark:text-dark-400">{a.type}</span>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-2">
+                      <td className="px-5 py-3.5 w-52">
+                        <div className="flex items-center gap-1.5 min-w-0">
                           {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
-                            <span className="text-xs text-amber-500 dark:text-amber-400">未配置</span>
+                            <span className="text-xs text-amber-500 dark:text-amber-400 shrink-0">未配置</span>
                           )}
                           {supportedModels.length === 1 && supportedModels[0] === '*' && (
-                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400 shrink-0">
                               * 全部模型
                             </span>
                           )}
                           {supportedModels.length > 0 && supportedModels[0] !== '*' && (
                             <>
-                              {supportedModels.slice(0, 2).map((m) => (
-                                <span key={m} className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
-                                  {m}
-                                </span>
-                              ))}
-                              {supportedModels.length > 2 && (
-                                <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 2}</span>
+                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400 truncate shrink-0 max-w-[8rem]">
+                                {supportedModels[0]}
+                              </span>
+                              {supportedModels.length > 1 && (
+                                <span className="text-xs text-gray-400 dark:text-dark-500 shrink-0">+{supportedModels.length - 1}</span>
                               )}
                             </>
                           )}
                           <button
                             type="button"
                             onClick={() => setDrawerAccount(a)}
-                            className="inline-flex items-center rounded-md border border-gray-200 bg-white px-2 py-1 text-xs font-medium text-gray-500 hover:border-violet-300 hover:text-violet-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400 dark:hover:border-violet-600 dark:hover:text-violet-400 transition-colors shrink-0"
+                            className="inline-flex items-center rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs font-medium text-gray-500 hover:border-violet-300 hover:text-violet-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400 dark:hover:border-violet-600 dark:hover:text-violet-400 transition-colors shrink-0 ml-auto"
                           >
                             <Icon name="cog" size="xs" />
-                            <span className="ml-1">管理</span>
                           </button>
                         </div>
                       </td>
