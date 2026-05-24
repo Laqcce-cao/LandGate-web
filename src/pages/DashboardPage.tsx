@@ -3,7 +3,6 @@ import { Icon, type IconName } from '../components/ui/Icon';
 import { TokenUsageChart } from '../components/charts/TokenUsageChart';
 import { usageApi, type DailyUsageStats } from '../api/admin/usage';
 import { useAuthStore } from '../stores/authStore';
-import { Skeleton } from '../components/ui/Skeleton';
 import { useToastStore } from '../stores/toastStore';
 
 function formatTokens(n: number): string {
