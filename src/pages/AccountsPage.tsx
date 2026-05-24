@@ -25,6 +25,43 @@ const parseJsonSafe = (raw: unknown): Record<string, unknown> => {
   return {};
 };
 
+// ---- Rate Limit 相关 ----
+
+interface RateLimitBucket {
+  limit: number;
+  remaining: number;
+  reset?: string;
+}
+
+interface RateLimitStatus {
+  tokens?: RateLimitBucket;
+  requests?: RateLimitBucket;
+}
+
+const parseRateLimitStatus = (raw: string | undefined): RateLimitStatus | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return (parsed && (parsed.tokens || parsed.requests)) ? parsed as RateLimitStatus : null;
+  } catch {
+    return null;
+  }
+};
+
+const formatTimeUntil = (resetIso: string): string => {
+  const reset = new Date(resetIso);
+  const diffMs = reset.getTime() - Date.now();
+  if (diffMs <= 0) return 'resetting now';
+  const hours = Math.floor(diffMs / 3600000);
+  const minutes = Math.floor((diffMs % 3600000) / 60000);
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `resets in ${days}d ${hours % 24}h`;
+  }
+  if (hours > 0) return `resets in ${hours}h ${minutes}m`;
+  return `resets in ${minutes}m`;
+};
+
 // ---------------------------------------------------------------------------
 // 每种认证类型对应的凭证字段定义
 // ---------------------------------------------------------------------------
@@ -641,8 +678,9 @@ export default function AccountsPage() {
                   </div>
                 </button>
 
-                {/* ── account expansion: model whitelist ── */}
+                {/* ── account expansion: model whitelist + usage ── */}
                 {open && (
+                  <>
                   <div className="border-t border-gray-100 dark:border-dark-700">
                     <div className="px-5 py-3">
                       <div className="mb-2 flex items-center justify-between">
@@ -755,6 +793,58 @@ export default function AccountsPage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* ── usage bars: OAuth 账号 Rate Limit 用量 ── */}
+                  {a.type === 'oauth' && (() => {
+                    const status = parseRateLimitStatus(a.sessionWindowStatus);
+                    if (!status) return null;
+                    return (
+                      <div className="border-t border-gray-100 dark:border-dark-700">
+                        <div className="px-5 py-3">
+                          <div className="mb-2">
+                            <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                              📊 用量概览
+                            </span>
+                          </div>
+                          <div className="space-y-2">
+                            {(['tokens', 'requests'] as const).map((key) => {
+                              const bucket = status[key];
+                              if (!bucket) return null;
+                              const used = bucket.limit - bucket.remaining;
+                              const pct = bucket.limit > 0 ? Math.round((used / bucket.limit) * 100) : 0;
+                              const colorClass = pct > 90
+                                ? 'bg-red-500' : pct > 70
+                                ? 'bg-yellow-500' : 'bg-green-500';
+                              return (
+                                <div key={key}>
+                                  <div className="flex items-center justify-between text-xs mb-0.5">
+                                    <span className="font-medium text-gray-600 dark:text-dark-400 capitalize">
+                                      {key}
+                                    </span>
+                                    <span className="text-gray-500 dark:text-dark-500">
+                                      {used.toLocaleString()} / {bucket.limit.toLocaleString()}
+                                      {bucket.reset && (
+                                        <span className="ml-2 text-gray-400">
+                                          {formatTimeUntil(bucket.reset)}
+                                        </span>
+                                      )}
+                                    </span>
+                                  </div>
+                                  <div className="h-2 rounded-full bg-gray-200 dark:bg-dark-700 overflow-hidden">
+                                    <div
+                                      className={`h-full rounded-full transition-all ${colorClass}`}
+                                      style={{ width: `${Math.min(pct, 100)}%` }}
+                                    />
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  </>
                 )}
               </div>
             );
