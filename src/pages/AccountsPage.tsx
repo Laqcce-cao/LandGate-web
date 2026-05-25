@@ -1,8 +1,10 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { accountsApi, type Account } from '../api/admin/accounts';
+import { modelPricesApi } from '../api/admin/model-prices';
 import { oauthApi } from '../api/admin/oauth';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { Drawer } from '../components/ui/Drawer';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Toggle } from '../components/ui/Toggle';
@@ -24,6 +26,43 @@ const parseJsonSafe = (raw: unknown): Record<string, unknown> => {
   return {};
 };
 
+// ---- Rate Limit 相关 ----
+
+interface RateLimitBucket {
+  limit: number;
+  remaining: number;
+  reset?: string;
+}
+
+interface RateLimitStatus {
+  tokens?: RateLimitBucket;
+  requests?: RateLimitBucket;
+}
+
+const parseRateLimitStatus = (raw: string | undefined): RateLimitStatus | null => {
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    return (parsed && (parsed.tokens || parsed.requests)) ? parsed as RateLimitStatus : null;
+  } catch {
+    return null;
+  }
+};
+
+const formatTimeUntil = (resetIso: string): string => {
+  const reset = new Date(resetIso);
+  const diffMs = reset.getTime() - Date.now();
+  if (diffMs <= 0) return 'resetting now';
+  const hours = Math.floor(diffMs / 3600000);
+  const minutes = Math.floor((diffMs % 3600000) / 60000);
+  if (hours > 24) {
+    const days = Math.floor(hours / 24);
+    return `resets in ${days}d ${hours % 24}h`;
+  }
+  if (hours > 0) return `resets in ${hours}h ${minutes}m`;
+  return `resets in ${minutes}m`;
+};
+
 // ---------------------------------------------------------------------------
 // 每种认证类型对应的凭证字段定义
 // ---------------------------------------------------------------------------
@@ -32,7 +71,6 @@ interface CredField {
   label: string;
   placeholder: string;
   required: boolean;
-  /** 字段类型，用于渲染 textarea（长文本）或 input */
   type?: 'textarea';
 }
 
@@ -72,6 +110,29 @@ function buildEmptyCredValues(type: string): Record<string, string> {
   return init;
 }
 
+const PLATFORM_COLORS: Record<string, string> = {
+  openai: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  anthropic: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
+  gemini: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  antigravity: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
+const PLATFORM_OPTIONS = [
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'anthropic', label: 'Anthropic Claude' },
+  { value: 'gemini', label: 'Google Gemini' },
+  { value: 'antigravity', label: 'Antigravity' },
+];
+
+const TYPE_OPTIONS = [
+  { value: 'api_key', label: 'API Key' },
+  { value: 'oauth', label: 'OAuth' },
+  { value: 'setup_token', label: 'Setup Token' },
+  { value: 'upstream', label: '上游代理转发' },
+  { value: 'bedrock', label: 'AWS Bedrock' },
+  { value: 'service_account', label: 'GCP Service Account' },
+];
+
 // ---------------------------------------------------------------------------
 
 export default function AccountsPage() {
@@ -81,9 +142,18 @@ export default function AccountsPage() {
   const [editTarget, setEditTarget] = useState<Account | null>(null);
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
+  const [drawerAccount, setDrawerAccount] = useState<Account | null>(null);
   const [modelInputs, setModelInputs] = useState<Record<number, string>>({});
+  const [baselineModels, setBaselineModels] = useState<Record<number, string[]>>({});
+  const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
   const addToast = useToastStore((s) => s.addToast);
+
+  // ---- 筛选 ----
+  const [searchInput, setSearchInput] = useState('');
+  const [search, setSearch] = useState('');
+  const [filterPlatform, setFilterPlatform] = useState('');
+  const [filterType, setFilterType] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
 
   // ---- 基础字段 ----
   const [name, setName] = useState('');
@@ -92,7 +162,6 @@ export default function AccountsPage() {
   const [statusForm, setStatusForm] = useState('ACTIVE');
   const [concurrency, setConcurrency] = useState(3);
   const [priority, setPriority] = useState(50);
-  const [rateMultiplier, setRateMultiplier] = useState('1.0');
 
   // ---- 凭证 & extra ----
   const [credValues, setCredValues] = useState<Record<string, string>>(buildEmptyCredValues('api_key'));
@@ -105,7 +174,6 @@ export default function AccountsPage() {
   const [oauthAuthUrl, setOauthAuthUrl] = useState('');
   const [oauthError, setOauthError] = useState('');
 
-  // Device Code Flow (OpenAI)
   const [oauthDeviceData, setOauthDeviceData] = useState<{
     deviceAuthId: string;
     userCode: string;
@@ -117,7 +185,6 @@ export default function AccountsPage() {
   const [oauthPollCount, setOauthPollCount] = useState(0);
   const oauthPollTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // ---- 当类型切换时重置凭证字段 ----
   const handleTypeChange = (newType: string) => {
     setType(newType);
     setCredValues(buildEmptyCredValues(newType));
@@ -144,7 +211,6 @@ export default function AccountsPage() {
     setOauthModalOpen(true);
   };
 
-  // Authorization Code Flow (Anthropic)
   const handleAuthCodeAuthorize = async () => {
     setOauthAuthorizing(true);
     setOauthError('');
@@ -152,11 +218,8 @@ export default function AccountsPage() {
       const redirectUri = `${window.location.origin}/admin/oauth/callback`;
       const { data } = await oauthApi.authorize({ platform: oauthPlatform, redirectUri });
       setOauthAuthUrl(data.authorizeUrl);
-
       const popup = window.open(data.authorizeUrl, 'oauth-authorize', 'width=800,height=700');
-      if (popup) {
-        oauthPopupRef.current = popup;
-      }
+      if (popup) oauthPopupRef.current = popup;
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
@@ -168,7 +231,6 @@ export default function AccountsPage() {
     }
   };
 
-  // Device Code Flow (OpenAI)
   const handleDeviceCodeInitiate = async () => {
     setOauthAuthorizing(true);
     setOauthError('');
@@ -193,7 +255,6 @@ export default function AccountsPage() {
     clearOAuthPolling();
     const maxPolls = Math.ceil(expiresIn / interval);
     let count = 0;
-
     oauthPollTimerRef.current = setInterval(async () => {
       count++;
       setOauthPollCount(count);
@@ -202,10 +263,7 @@ export default function AccountsPage() {
         if (data.status === 'SUCCESS') {
           clearOAuthPolling();
           setOauthPollStatus('SUCCESS');
-          addToast({
-            type: 'success',
-            message: `OAuth 账号 "${data.account?.name ?? '未知'}" 创建成功`,
-          });
+          addToast({ type: 'success', message: `OAuth 账号 "${data.account?.name ?? '未知'}" 创建成功` });
           fetchAccounts();
           setTimeout(() => setOauthModalOpen(false), 1500);
         } else if (data.status === 'EXPIRED') {
@@ -213,10 +271,7 @@ export default function AccountsPage() {
           setOauthPollStatus('EXPIRED');
           setOauthError('设备码已过期，请重新发起授权');
         }
-        // PENDING: continue polling
-      } catch {
-        // Poll failed, keep trying until max
-      }
+      } catch { /* Poll failed, keep trying until max */ }
       if (count >= maxPolls) {
         clearOAuthPolling();
         setOauthPollStatus('EXPIRED');
@@ -233,7 +288,6 @@ export default function AccountsPage() {
     }
   };
 
-  // ---- 手动刷新 OAuth Token ----
   const handleRefreshToken = async (account: Account) => {
     try {
       await oauthApi.refreshToken(account.id);
@@ -259,9 +313,20 @@ export default function AccountsPage() {
 
   useEffect(() => {
     fetchAccounts().finally(() => setLoading(false));
+    modelPricesApi.list(0, 500).then(({ data }) => {
+      const seen = new Set<string>();
+      const opts: { value: string; label: string }[] = [];
+      (data.prices ?? []).forEach((p) => {
+        if (!seen.has(p.model)) {
+          seen.add(p.model);
+          opts.push({ value: p.model, label: p.model });
+        }
+      });
+      setModelOptions(opts);
+    }).catch(() => { /* 非关键请求，静默失败 */ });
   }, [fetchAccounts]);
 
-  // ---- 监听 OAuth 回调窗口的 postMessage ----
+  // ---- 监听 OAuth 回调 ----
   useEffect(() => {
     const handler = (e: MessageEvent) => {
       if (e.origin !== window.location.origin) return;
@@ -275,7 +340,6 @@ export default function AccountsPage() {
     return () => window.removeEventListener('message', handler);
   }, [fetchAccounts, addToast]);
 
-  // Cleanup polling when modal closes or component unmounts
   useEffect(() => {
     if (!oauthModalOpen) {
       clearOAuthPolling();
@@ -296,7 +360,6 @@ export default function AccountsPage() {
     setExtraBaseUrl('');
     setConcurrency(3);
     setPriority(50);
-    setRateMultiplier('1.0');
     setModalOpen(true);
   };
 
@@ -306,8 +369,6 @@ export default function AccountsPage() {
     setPlatform(account.platform);
     setType(account.type);
     setStatusForm(account.status);
-
-    // 解析已有 credentials JSON 字符串到表单字段
     const fields = getCredFields(account.type);
     const vals: Record<string, string> = {};
     const creds = parseJsonSafe(account.credentials);
@@ -316,14 +377,10 @@ export default function AccountsPage() {
       vals[f.key] = typeof v === 'string' ? v : (v ? JSON.stringify(v) : '');
     });
     setCredValues(vals);
-
-    // 解析 extra.base_url（extra 也是 JSON 字符串）
     const extra = parseJsonSafe(account.extra);
     setExtraBaseUrl(typeof (extra as Record<string, unknown>).base_url === 'string' ? (extra as Record<string, unknown>).base_url as string : '');
-
     setConcurrency(account.concurrency ?? 3);
     setPriority(account.priority ?? 50);
-    setRateMultiplier(String(account.rateMultiplier ?? 1.0));
     setModalOpen(true);
   };
 
@@ -331,18 +388,14 @@ export default function AccountsPage() {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      // 编辑时从原始凭证开始，只覆盖用户修改过的非空字段，避免丢失未修改的凭证
       const originalCreds = editTarget ? parseJsonSafe(editTarget.credentials) as Record<string, string> : {};
       const creds: Record<string, string> = { ...originalCreds };
       Object.entries(credValues).forEach(([k, v]) => {
         if (v.trim()) creds[k] = v.trim();
       });
-
-      // 构建 extra：编辑时保留原始 extra，只覆盖 base_url
       const originalExtra = editTarget ? parseJsonSafe(editTarget.extra) as Record<string, string> : {};
       const extra: Record<string, string> = { ...originalExtra };
       if (extraBaseUrl.trim()) extra.base_url = extraBaseUrl.trim();
-
       const payload = {
         name: name.trim(),
         platform,
@@ -352,7 +405,6 @@ export default function AccountsPage() {
         extra: JSON.stringify(extra),
         concurrency,
         priority,
-        rateMultiplier: Number(rateMultiplier) || 1.0,
       };
       if (editTarget) {
         await accountsApi.update(editTarget.id, payload);
@@ -374,7 +426,6 @@ export default function AccountsPage() {
     const newSchedulable = !account.schedulable;
     try {
       await accountsApi.setSchedulable(account.id, newSchedulable);
-      // 同步更新状态：可调度 → ACTIVE，不可调度 → DISABLED
       const newStatus = newSchedulable ? 'ACTIVE' : 'DISABLED';
       await accountsApi.updateStatus(account.id, newStatus);
       addToast({ type: 'success', message: '调度状态已更新' });
@@ -414,8 +465,42 @@ export default function AccountsPage() {
     if (!a) return;
     const current = parseSupportedModels(a);
     if (current.includes(trimmed)) return;
+
+    if (trimmed === '*') {
+      const baseline = current.filter((m) => m !== '*');
+      setBaselineModels((prev) => ({ ...prev, [accountId]: baseline }));
+      const updated = JSON.stringify(['*']);
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
+      );
+      setModelInputs((prev) => ({ ...prev, [accountId]: '' }));
+      try {
+        await accountsApi.update(accountId, { supportedModels: updated });
+        addToast({ type: 'success', message: '已切换为支持所有模型' });
+      } catch {
+        setAccounts((prev) =>
+          prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: a.supportedModels ?? undefined } : acc)),
+        );
+        setBaselineModels((prev) => {
+          const next = { ...prev };
+          delete next[accountId];
+          return next;
+        });
+        addToast({ type: 'error', message: '操作失败' });
+      }
+      return;
+    }
+
+    if (current.includes('*')) {
+      const baseline = baselineModels[accountId] ?? [];
+      if (baseline.includes(trimmed)) return;
+      setBaselineModels((prev) => ({ ...prev, [accountId]: [...baseline, trimmed] }));
+      setModelInputs((prev) => ({ ...prev, [accountId]: '' }));
+      addToast({ type: 'success', message: `已暂存模型: ${trimmed}（移除"全部"后生效）` });
+      return;
+    }
+
     const updated = JSON.stringify([...current, trimmed]);
-    // optimistic update
     setAccounts((prev) =>
       prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
     );
@@ -435,8 +520,39 @@ export default function AccountsPage() {
     const a = accounts.find((acc) => acc.id === accountId);
     if (!a) return;
     const current = parseSupportedModels(a);
+
+    if (model === '*') {
+      const baseline = baselineModels[accountId] ?? [];
+      const updated = JSON.stringify(baseline);
+      const previousSupported = a.supportedModels;
+      setAccounts((prev) =>
+        prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
+      );
+      setBaselineModels((prev) => {
+        const next = { ...prev };
+        delete next[accountId];
+        return next;
+      });
+      try {
+        await accountsApi.update(accountId, { supportedModels: updated });
+        addToast({ type: 'success', message: baseline.length > 0 ? '已恢复具体模型' : '已移除通配符' });
+      } catch {
+        setAccounts((prev) =>
+          prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: previousSupported ?? undefined } : acc)),
+        );
+        addToast({ type: 'error', message: '操作失败' });
+      }
+      return;
+    }
+
+    if (current.includes('*')) {
+      const baseline = baselineModels[accountId] ?? [];
+      setBaselineModels((prev) => ({ ...prev, [accountId]: baseline.filter((m) => m !== model) }));
+      addToast({ type: 'success', message: `已移除暂存模型: ${model}` });
+      return;
+    }
+
     const updated = JSON.stringify(current.filter((m) => m !== model));
-    // optimistic update
     setAccounts((prev) =>
       prev.map((acc) => (acc.id === accountId ? { ...acc, supportedModels: updated } : acc)),
     );
@@ -451,178 +567,296 @@ export default function AccountsPage() {
     }
   };
 
-  const platformOptions = [
-    { value: 'openai', label: 'OpenAI' },
-    { value: 'anthropic', label: 'Anthropic Claude' },
-    { value: 'gemini', label: 'Google Gemini' },
-    { value: 'antigravity', label: 'Antigravity' },
-  ];
-
-  const typeOptions = [
-    { value: 'api_key', label: 'API Key' },
-    { value: 'oauth', label: 'OAuth' },
-    { value: 'setup_token', label: 'Setup Token' },
-    { value: 'upstream', label: '上游代理转发' },
-    { value: 'bedrock', label: 'AWS Bedrock' },
-    { value: 'service_account', label: 'GCP Service Account' },
-  ];
-
   const credFields = getCredFields(type);
+
+  /* ─── 筛选逻辑 ─── */
+  const filteredAccounts = useMemo(() => {
+    return accounts.filter((a) => {
+      if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
+      if (filterPlatform && a.platform !== filterPlatform) return false;
+      if (filterType && a.type !== filterType) return false;
+      if (filterStatus && a.status !== filterStatus) return false;
+      return true;
+    });
+  }, [accounts, search, filterPlatform, filterType, filterStatus]);
+
+  /* ─── 统计 ─── */
+  const stats = useMemo(() => {
+    const byPlatform: Record<string, number> = {};
+    let active = 0, disabled = 0, schedulableCount = 0;
+    accounts.forEach((a) => {
+      byPlatform[a.platform] = (byPlatform[a.platform] ?? 0) + 1;
+      if (a.status === 'ACTIVE') active++;
+      else disabled++;
+      if (a.schedulable) schedulableCount++;
+    });
+    return { byPlatform, active, disabled, schedulable: schedulableCount };
+  }, [accounts]);
+
+  const handleSearchKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') setSearch(searchInput.trim());
+  };
+
+  const hasFilters = search || filterPlatform || filterType || filterStatus;
+
+  const clearFilters = () => {
+    setSearchInput('');
+    setSearch('');
+    setFilterPlatform('');
+    setFilterType('');
+    setFilterStatus('');
+  };
 
   return (
     <div>
-      {/* header */}
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500 dark:text-dark-400">
-          共 {accounts.length} 个上游账号
-        </p>
-        <div className="flex items-center gap-2">
-          <Button variant="secondary" onClick={handleOpenOAuthModal}>
-            <Icon name="externalLink" size="sm" /> OAuth 授权
-          </Button>
-          <Button onClick={openCreate}>
-            <Icon name="plus" size="sm" /> 添加账号
-          </Button>
+      {/* ── 统计卡片 ── */}
+      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
+          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-violet-50 dark:bg-violet-900/20" />
+          <div className="relative flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
+              <Icon name="server" size="lg" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{accounts.length}</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">账号总数</p>
+            </div>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
+          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-emerald-50 dark:bg-emerald-900/20" />
+          <div className="relative flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+              <Icon name="checkCircle" size="lg" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.active}</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">活跃</p>
+            </div>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
+          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-amber-50 dark:bg-amber-900/20" />
+          <div className="relative flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
+              <Icon name="play" size="lg" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.schedulable}</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">可调度</p>
+            </div>
+          </div>
+        </div>
+        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
+          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-red-50 dark:bg-red-900/20" />
+          <div className="relative flex items-center gap-4">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400">
+              <Icon name="ban" size="lg" />
+            </div>
+            <div>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.disabled}</p>
+              <p className="text-xs text-gray-500 dark:text-dark-400">已禁用</p>
+            </div>
+          </div>
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center py-24">
-          <LoadingSpinner size="xl" />
-        </div>
-      ) : accounts.length === 0 ? (
-        <div className="card">
-          <div className="flex flex-col items-center gap-3 py-20 text-gray-400 dark:text-dark-500">
-            <Icon name="grid" size="xl" className="text-gray-200 dark:text-dark-700" />
-            <p className="text-sm">暂无账号，点击右上角"添加账号"开始</p>
+      {/* ── 搜索 + 筛选 ── */}
+      <div className="card">
+        <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+          <div className="flex items-center gap-3 shrink-0">
+            {/* 搜索 */}
+            <div className="relative">
+              <Icon
+                name="search"
+                size="sm"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400"
+              />
+              <input
+                className="input w-44 pl-9"
+                placeholder="搜索账号名称..."
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={handleSearchKeyDown}
+              />
+            </div>
+            <Button onClick={() => setSearch(searchInput.trim())} size="sm">搜索</Button>
+
+            {/* 平台筛选 */}
+            <Select
+              options={[{ value: '', label: '全部平台' }, ...PLATFORM_OPTIONS]}
+              value={filterPlatform}
+              onChange={setFilterPlatform}
+              className="w-40"
+            />
+
+            {/* 类型筛选 */}
+            <Select
+              options={[{ value: '', label: '全部类型' }, ...TYPE_OPTIONS]}
+              value={filterType}
+              onChange={setFilterType}
+              className="w-40"
+            />
+
+            {/* 状态筛选 */}
+            <Select
+              options={[
+                { value: '', label: '全部状态' },
+                { value: 'ACTIVE', label: 'Active' },
+                { value: 'DISABLED', label: 'Disabled' },
+              ]}
+              value={filterStatus}
+              onChange={setFilterStatus}
+              className="w-36"
+            />
+
+            {hasFilters && (
+              <button
+                className="text-sm text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200 transition-colors"
+                onClick={clearFilters}
+              >
+                清除筛选
+              </button>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-sm whitespace-nowrap text-gray-400 dark:text-dark-500">
+              共 {filteredAccounts.length} 个账号
+            </span>
+            <Button variant="secondary" onClick={handleOpenOAuthModal}>
+              <Icon name="externalLink" size="sm" /> OAuth 授权
+            </Button>
+            <Button onClick={openCreate}>
+              <Icon name="plus" size="sm" /> 添加账号
+            </Button>
           </div>
         </div>
-      ) : (
-        <div className="space-y-2">
-          {accounts.map((a) => {
-            const open = expanded.has(a.id);
-            const supportedModels = parseSupportedModels(a);
-            const platformBadge: Record<string, string> = {
-              openai: 'bg-green-100 text-green-700',
-              anthropic: 'bg-orange-100 text-orange-700',
-              gemini: 'bg-blue-100 text-blue-700',
-              antigravity: 'bg-purple-100 text-purple-700',
-            };
 
-            return (
-              <div key={a.id} className="card overflow-hidden">
-                {/* ── account header ── */}
-                <button
-                  type="button"
-                  onClick={() =>
-                    setExpanded((prev) => {
-                      const next = new Set(prev);
-                      if (next.has(a.id)) next.delete(a.id); else next.add(a.id);
-                      return next;
-                    })
-                  }
-                  className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors"
-                >
-                  <Icon
-                    name={open ? 'chevronDown' : 'chevronRight'}
-                    size="sm"
-                    className="shrink-0 text-gray-400"
-                  />
-                  <span className="text-xs text-gray-400 font-mono">#{a.id}</span>
-                  <span className="font-semibold text-gray-900 dark:text-white">{a.name}</span>
-                  <span
-                    className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[a.platform] ?? 'bg-gray-100 text-gray-600'}`}
-                  >
-                    {a.platform ?? '—'}
-                  </span>
-                  <span className="text-xs text-gray-400 dark:text-dark-500">{a.type}</span>
-                  <span className="text-xs text-gray-400 dark:text-dark-500">
-                    并发 {a.concurrency ?? 3} · 倍率 ×{a.rateMultiplier ?? 1}
-                  </span>
-                  <StatusBadge status={a.status ?? 'ACTIVE'} />
-                  <div className="flex items-center gap-1 ml-auto" onClick={(e) => e.stopPropagation()}>
-                    <Toggle
-                      checked={a.schedulable}
-                      onChange={() => handleToggleSchedulable(a)}
-                    />
-                    <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                      <Icon name="edit" size="xs" />
-                    </Button>
-                    {a.type === 'oauth' && (
-                      <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)} title="刷新 Token">
-                        <Icon name="refresh" size="xs" />
-                      </Button>
-                    )}
-                    <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
-                      <Icon name="trash" size="xs" className="text-red-500" />
-                    </Button>
-                  </div>
-                </button>
+        {/* ── 表格 ── */}
+        {loading ? (
+          <div className="flex items-center justify-center py-24">
+            <LoadingSpinner size="xl" />
+          </div>
+        ) : filteredAccounts.length === 0 ? (
+          <div className="flex flex-col items-center gap-3 py-20 text-gray-400 dark:text-dark-500">
+            <Icon name="server" size="xl" className="text-gray-200 dark:text-dark-700" />
+            <p className="text-sm">{hasFilters ? '没有匹配的账号' : '暂无账号，点击右上角"添加账号"开始'}</p>
+          </div>
+        ) : (
+          <div className="overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100 dark:border-dark-700">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-16">ID</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">名称</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-28">平台</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-32">类型</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-52">支持模型</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">并发</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">优先级</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-24">状态</th>
+                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">可调度</th>
+                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-32">操作</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50 dark:divide-dark-800">
+                {filteredAccounts.map((a) => {
+                  const supportedModels = parseSupportedModels(a);
 
-                {/* ── account expansion: model whitelist ── */}
-                {open && (
-                  <div className="border-t border-gray-100 dark:border-dark-700">
-                    <div className="px-5 py-3">
-                      <div className="mb-2 flex items-center justify-between">
-                        <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                          ✅ 支持模型（白名单）
+                  return (
+                    <tr key={a.id} className="hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors">
+                      <td className="px-5 py-3.5">
+                        <span className="text-xs font-mono text-gray-400 dark:text-dark-500 tabular-nums">
+                          #{a.id}
                         </span>
-                      </div>
-                      {supportedModels.length === 0 ? (
-                        <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
-                          未设置 — 添加模型名以限制该号只路由这些模型的请求（留空表示支持所有模型）
-                        </p>
-                      ) : (
-                        <div className="mb-2 space-y-1">
-                          {supportedModels.map((m) => (
-                            <div
-                              key={m}
-                              className="flex items-center gap-3 rounded-lg bg-green-50 px-3 py-2 text-sm dark:bg-green-900/10"
-                            >
-                              <span className="font-medium text-green-700 dark:text-green-400 min-w-0 truncate flex-1">
-                                {m}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {a.name}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                          {a.platform ?? '—'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className="text-sm text-gray-500 dark:text-dark-400">{a.type}</span>
+                      </td>
+                      <td className="px-5 py-3.5 w-52">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
+                            <span className="text-xs text-amber-500 dark:text-amber-400 shrink-0">未配置</span>
+                          )}
+                          {supportedModels.length === 1 && supportedModels[0] === '*' && (
+                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400 shrink-0">
+                              * 全部模型
+                            </span>
+                          )}
+                          {supportedModels.length > 0 && supportedModels[0] !== '*' && (
+                            <>
+                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400 truncate shrink-0 max-w-[8rem]">
+                                {supportedModels[0]}
                               </span>
-                              <span className="rounded bg-green-100 px-1.5 py-0.5 text-[10px] text-green-600 dark:bg-green-900/30 dark:text-green-400">
-                                已支持
-                              </span>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeSupportedModel(a.id, m)}
-                              >
-                                <Icon name="x" size="xs" className="text-red-400" />
-                              </Button>
-                            </div>
-                          ))}
+                              {supportedModels.length > 1 && (
+                                <span className="text-xs text-gray-400 dark:text-dark-500 shrink-0">+{supportedModels.length - 1}</span>
+                              )}
+                            </>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setDrawerAccount(a)}
+                            className="inline-flex items-center rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs font-medium text-gray-500 hover:border-violet-300 hover:text-violet-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400 dark:hover:border-violet-600 dark:hover:text-violet-400 transition-colors shrink-0 ml-auto"
+                          >
+                            <Icon name="cog" size="xs" />
+                          </button>
                         </div>
-                      )}
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="输入模型名，如 claude-sonnet-4"
-                          value={modelInputs[a.id] ?? ''}
-                          onChange={(e) =>
-                            setModelInputs((prev) => ({ ...prev, [a.id]: e.target.value }))
-                          }
-                          className="flex-1"
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        <span className="inline-flex items-center justify-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums min-w-[2rem]">
+                          {a.concurrency ?? 3}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        <span className="inline-flex items-center justify-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums min-w-[2rem]">
+                          {a.priority ?? 50}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <StatusBadge status={a.status ?? 'ACTIVE'} />
+                      </td>
+                      <td className="px-5 py-3.5 text-center">
+                        <Toggle
+                          checked={a.schedulable}
+                          onChange={() => handleToggleSchedulable(a)}
                         />
-                        <Button
-                          variant="secondary"
-                          size="sm"
-                          onClick={() => addSupportedModel(a.id, modelInputs[a.id] ?? '')}
-                        >
-                          <Icon name="plus" size="xs" /> 添加
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
+                      </td>
+                      <td className="px-5 py-3.5 text-right">
+                        <div className="flex items-center justify-end gap-0.5">
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                            <Icon name="edit" size="xs" />
+                          </Button>
+                          {a.type === 'oauth' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)} title="刷新 Token">
+                              <Icon name="refresh" size="xs" />
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
+                            <Icon name="trash" size="xs" className="text-red-500" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
-      {/* Create/Edit modal */}
+      {/* ═══ Create/Edit Modal ═══ */}
       <Modal
         open={modalOpen}
         onClose={() => setModalOpen(false)}
@@ -636,22 +870,20 @@ export default function AccountsPage() {
         }
       >
         <div className="space-y-5">
-          {/* 基本信息 */}
           <Input label="名称" value={name} onChange={(e) => setName(e.target.value)} placeholder="输入账号名称" />
 
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="input-label">平台</label>
-              <Select options={platformOptions} value={platform} onChange={setPlatform} />
+              <Select options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} />
             </div>
             <div>
               <label className="input-label">类型</label>
-              <Select options={typeOptions} value={type} onChange={handleTypeChange} />
+              <Select options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
             </div>
           </div>
 
-          {/* 调度参数 */}
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 gap-3">
             <Input
               label="并发上限"
               type="number"
@@ -664,19 +896,11 @@ export default function AccountsPage() {
               value={String(priority)}
               onChange={(e) => setPriority(Number(e.target.value) || 0)}
             />
-            <Input
-              label="费率系数"
-              type="number"
-              value={rateMultiplier}
-              onChange={(e) => setRateMultiplier(e.target.value)}
-              placeholder="1.0"
-            />
           </div>
 
-          {/* 凭证字段 —— 按类型动态渲染 */}
           <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
             <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
-              凭证 <span className="text-gray-400 font-normal">— {typeOptions.find((o) => o.value === type)?.label}</span>
+              凭证 <span className="text-gray-400 font-normal">— {TYPE_OPTIONS.find((o) => o.value === type)?.label}</span>
             </legend>
             <div className="space-y-3 mt-1">
               {credFields.map((f) => (
@@ -706,7 +930,6 @@ export default function AccountsPage() {
             </div>
           </fieldset>
 
-          {/* Extra 配置 */}
           <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
             <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
               额外配置 <span className="text-gray-400 font-normal">— 可选</span>
@@ -724,7 +947,7 @@ export default function AccountsPage() {
         </div>
       </Modal>
 
-      {/* OAuth Authorization modal */}
+      {/* ═══ OAuth Authorization Modal ═══ */}
       <Modal
         open={oauthModalOpen}
         onClose={() => setOauthModalOpen(false)}
@@ -734,7 +957,6 @@ export default function AccountsPage() {
           const isAnthropicDone = !!oauthAuthUrl;
           const isOpenAIStarted = !!oauthDeviceData;
           const isOpenAIDone = oauthPollStatus === 'SUCCESS' || oauthPollStatus === 'EXPIRED';
-
           if (!isAnthropicDone && !isOpenAIStarted) {
             return (
               <div className="flex justify-end gap-3">
@@ -761,7 +983,6 @@ export default function AccountsPage() {
         })()}
       >
         <div className="space-y-5">
-          {/* ---- Initial: select platform ---- */}
           {!oauthAuthUrl && !oauthDeviceData && (
             <>
               <p className="text-sm text-gray-500 dark:text-dark-400">
@@ -769,7 +990,6 @@ export default function AccountsPage() {
                 Anthropic 将跳转到授权页面完成登录；
                 OpenAI 使用设备码方式，在新页面输入验证码即可完成授权。
               </p>
-
               <div>
                 <label className="input-label">OAuth 平台</label>
                 <Select
@@ -781,13 +1001,11 @@ export default function AccountsPage() {
                   onChange={setOauthPlatform}
                 />
               </div>
-
               {oauthPlatform === 'anthropic' && (
                 <p className="text-xs text-gray-400">
                   回调地址：{window.location.origin}/admin/oauth/callback
                 </p>
               )}
-
               {oauthError && (
                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
                   {oauthError}
@@ -796,7 +1014,6 @@ export default function AccountsPage() {
             </>
           )}
 
-          {/* ---- Anthropic: popup opened ---- */}
           {oauthAuthUrl && (
             <>
               <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-4 text-center">
@@ -805,7 +1022,6 @@ export default function AccountsPage() {
                   授权页面已打开，请在弹出的窗口中完成 Anthropic 账号授权。
                 </p>
               </div>
-
               {oauthPopupRef.current === null && (
                 <div className="rounded-lg bg-yellow-50 dark:bg-yellow-900/20 p-4">
                   <p className="text-sm text-yellow-700 dark:text-yellow-300 mb-3">
@@ -821,14 +1037,12 @@ export default function AccountsPage() {
                   </a>
                 </div>
               )}
-
               <p className="text-center text-xs text-gray-400">
                 授权完成后账号将自动出现在列表中。
               </p>
             </>
           )}
 
-          {/* ---- OpenAI: Device Code Flow ---- */}
           {oauthDeviceData && oauthPollStatus !== 'SUCCESS' && (
             <>
               <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 p-4">
@@ -856,20 +1070,17 @@ export default function AccountsPage() {
                   <li>在 OpenAI 页面确认授权</li>
                 </ol>
               </div>
-
               {oauthPollStatus === 'PENDING' && (
                 <div className="flex items-center justify-center gap-3 text-sm text-gray-500 dark:text-dark-400">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
                   等待授权中（已轮询 {oauthPollCount} 次）...
                 </div>
               )}
-
               {oauthPollStatus === 'EXPIRED' && (
                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
                   {oauthError || '设备码已过期，请点击下方"重新授权"按钮'}
                 </div>
               )}
-
               {oauthError && oauthPollStatus !== 'EXPIRED' && (
                 <div className="rounded-lg bg-red-50 dark:bg-red-900/20 p-3 text-sm text-red-600 dark:text-red-400">
                   {oauthError}
@@ -878,7 +1089,6 @@ export default function AccountsPage() {
             </>
           )}
 
-          {/* ---- OpenAI: Success ---- */}
           {oauthDeviceData && oauthPollStatus === 'SUCCESS' && (
             <div className="rounded-lg bg-green-50 dark:bg-green-900/20 p-4 text-center">
               <Icon name="check" size="lg" className="mx-auto mb-2 text-green-600 dark:text-green-400" />
@@ -890,7 +1100,211 @@ export default function AccountsPage() {
         </div>
       </Modal>
 
-      {/* Delete confirm */}
+      {/* ═══ Model Management Drawer ═══ */}
+      <Drawer
+        open={!!drawerAccount}
+        onClose={() => setDrawerAccount(null)}
+        title={drawerAccount ? `模型管理 — ${drawerAccount.name}` : ''}
+        width="lg"
+      >
+        {drawerAccount && (() => {
+          const a = drawerAccount;
+          const supportedModels = parseSupportedModels(a);
+
+          return (
+            <div className="space-y-5">
+              {/* 账号信息 */}
+              <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-800">
+                <span className="text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
+                <span className="text-sm font-semibold text-gray-900 dark:text-white">{a.name}</span>
+                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600'}`}>
+                  {a.platform}
+                </span>
+                <span className="text-xs text-gray-400">{a.type}</span>
+                <StatusBadge status={a.status ?? 'ACTIVE'} />
+              </div>
+
+              {/* 模型白名单 */}
+              <div>
+                <div className="mb-3 flex items-center justify-between">
+                  <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-300">
+                    <Icon name="badge" size="sm" className="inline mr-1.5 text-emerald-500" />
+                    支持模型（白名单）
+                  </h3>
+                  {supportedModels.length > 0 && (
+                    <span className="text-xs text-gray-400 dark:text-dark-500">{supportedModels.length} 个</span>
+                  )}
+                </div>
+
+                {(() => {
+                  const raw = a.supportedModels;
+                  if (raw == null || raw === '' || raw === '[]') {
+                    return (
+                      <div className="rounded-xl border-2 border-dashed border-gray-200 px-6 py-8 text-center dark:border-dark-600">
+                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-900/20">
+                          <Icon name="exclamationCircle" size="lg" className="text-amber-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-700 dark:text-dark-300">尚未配置支持模型</p>
+                        <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">该账号不会被选中路由，请添加 "*" 支持所有模型或添加具体模型名</p>
+                      </div>
+                    );
+                  }
+                  if (supportedModels.length === 1 && supportedModels[0] === '*') {
+                    const baseline = baselineModels[a.id] ?? [];
+                    return (
+                      <div className="space-y-4">
+                        <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 dark:border-blue-800 dark:from-blue-900/10 dark:to-indigo-900/10">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-white shadow-sm">
+                              <Icon name="sparkles" size="md" />
+                            </div>
+                            <div className="flex-1">
+                              <p className="text-sm font-bold text-blue-800 dark:text-blue-300">匹配所有模型</p>
+                              <p className="text-xs text-blue-600/70 dark:text-blue-400/60">当前账号对所有模型请求开放</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => removeSupportedModel(a.id, '*')}
+                              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-red-900/30 dark:hover:border-red-700 dark:hover:text-red-400 transition-colors"
+                            >
+                              取消通配
+                            </button>
+                          </div>
+                        </div>
+                        {baseline.length > 0 && (
+                          <div>
+                            <p className="mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">待恢复模型</p>
+                            <div className="divide-y divide-gray-100 rounded-xl border border-dashed border-gray-200 dark:divide-dark-700 dark:border-dark-600">
+                              {baseline.map((m) => (
+                                <div key={m} className="flex items-center justify-between px-4 py-2.5">
+                                  <span className="text-sm text-gray-600 dark:text-gray-400">{m}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => setBaselineModels((prev) => ({ ...prev, [a.id]: (prev[a.id] ?? []).filter((x) => x !== m) }))}
+                                    className="text-gray-300 hover:text-red-500 transition-colors"
+                                  >
+                                    <Icon name="x" size="xs" />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-dark-700 dark:border-dark-600 overflow-hidden">
+                      {supportedModels.map((m, i) => (
+                        <div key={m} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors">
+                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
+                            <span className="text-xs font-bold">{i + 1}</span>
+                          </div>
+                          <span className="flex-1 text-sm font-medium text-gray-700 dark:text-dark-300 truncate">{m}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeSupportedModel(a.id, m)}
+                            className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors"
+                          >
+                            <Icon name="trash" size="xs" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })()}
+
+                {/* 添加模型 */}
+                <div className="mt-4 flex gap-2">
+                  <Select
+                    options={[
+                      { value: '*', label: '✦ 全部模型（通配符 *）' },
+                      ...modelOptions.filter((o) => !supportedModels.includes(o.value)),
+                    ]}
+                    value={modelInputs[a.id] ?? ''}
+                    onChange={(v) => setModelInputs((prev) => ({ ...prev, [a.id]: v }))}
+                    placeholder="搜索并选择模型..."
+                    searchable
+                    emptyText="无匹配模型"
+                    className="flex-1"
+                  />
+                  <Button variant="secondary" onClick={() => addSupportedModel(a.id, modelInputs[a.id] ?? '')}>
+                    <Icon name="plus" size="sm" /> 添加
+                  </Button>
+                </div>
+              </div>
+
+              {/* 分隔 */}
+              <div className="border-t border-gray-100 dark:border-dark-700" />
+
+              {/* 调度参数 */}
+              <div>
+                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">
+                  <Icon name="cog" size="sm" className="inline mr-1.5 text-gray-400" />
+                  调度参数
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
+                    <p className="text-xs text-gray-400 mb-0.5">并发上限</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{a.concurrency ?? 3}</p>
+                  </div>
+                  <div className="rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
+                    <p className="text-xs text-gray-400 mb-0.5">优先级</p>
+                    <p className="text-xl font-bold text-gray-900 dark:text-white">{a.priority ?? 50}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* OAuth 用量 */}
+              {a.type === 'oauth' && (() => {
+                const status = parseRateLimitStatus(a.sessionWindowStatus);
+                if (!status) return null;
+                return (
+                  <>
+                    <div className="border-t border-gray-100 dark:border-dark-700" />
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">
+                        <Icon name="chartBar" size="sm" className="inline mr-1.5 text-violet-500" />
+                        用量概览
+                      </h3>
+                      <div className="space-y-3">
+                        {(['tokens', 'requests'] as const).map((key) => {
+                          const bucket = status[key];
+                          if (!bucket) return null;
+                          const used = bucket.limit - bucket.remaining;
+                          const pct = bucket.limit > 0 ? Math.round((used / bucket.limit) * 100) : 0;
+                          const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-emerald-500';
+                          return (
+                            <div key={key} className="rounded-lg border border-gray-100 px-4 py-3 dark:border-dark-700">
+                              <div className="flex items-center justify-between text-sm mb-2">
+                                <span className="font-medium text-gray-700 dark:text-dark-300 capitalize">{key}</span>
+                                <span className="text-gray-500 dark:text-dark-400">
+                                  <span className="font-semibold text-gray-900 dark:text-white">{used.toLocaleString()}</span>
+                                  <span className="mx-1">/</span>
+                                  {bucket.limit.toLocaleString()}
+                                  {bucket.reset && <span className="ml-2 text-xs text-gray-400">{formatTimeUntil(bucket.reset)}</span>}
+                                </span>
+                              </div>
+                              <div className="h-2.5 rounded-full bg-gray-100 dark:bg-dark-700 overflow-hidden">
+                                <div
+                                  className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+                                  style={{ width: `${Math.min(pct, 100)}%` }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+          );
+        })()}
+      </Drawer>
+
+      {/* ═══ Delete Confirm ═══ */}
       <ConfirmDialog
         open={!!deleteTarget}
         onConfirm={handleDelete}

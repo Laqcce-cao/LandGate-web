@@ -8,7 +8,9 @@ export interface ModelPrice {
   outputPrice?: number;
   cacheWritePrice?: number;
   cacheReadPrice?: number;
-  groupId?: number | null;
+  cacheWrite5mPrice?: number;
+  cacheWrite1hPrice?: number;
+  supportsCacheBreakdown?: boolean;
   enabled?: boolean;
   notes?: string;
   createdAt?: string;

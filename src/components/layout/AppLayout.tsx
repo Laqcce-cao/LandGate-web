@@ -24,7 +24,7 @@ export function AppLayout() {
         className="transition-all duration-300"
         style={{
           marginLeft: typeof window !== 'undefined' && window.innerWidth >= 1024
-            ? collapsed ? '72px' : '256px'
+            ? collapsed ? '64px' : '224px'
             : 0,
         }}
       >

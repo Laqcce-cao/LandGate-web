@@ -20,7 +20,7 @@ export default function RedeemPage() {
 
     setLoading(true);
     try {
-      await client.post('/redeem', { code: code.trim() });
+      await client.post('/codes/redeem', { code: code.trim() });
       addToast({ type: 'success', message: '兑换成功！余额已更新' });
       setCode('');
       fetchUser();

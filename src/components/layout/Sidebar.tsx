@@ -53,7 +53,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
       <aside
         className={clsx(
           'sidebar',
-          collapsed ? 'w-[72px]' : 'w-64',
+          collapsed ? 'w-[64px]' : 'w-56',
           mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         )}
       >
