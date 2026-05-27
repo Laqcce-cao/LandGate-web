@@ -21,9 +21,44 @@ const subTypeOpts = [
 
 const platformBadge: Record<string, string> = {
   openai: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  openai_responses: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   anthropic: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   gemini: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
+const PROVIDER_OPTIONS = [
+  { value: 'anthropic', label: 'Anthropic' },
+  { value: 'openai', label: 'OpenAI' },
+  { value: 'gemini', label: 'Gemini' },
+  { value: 'antigravity', label: 'Antigravity' },
+];
+
+const PROTOCOL_OPTIONS = [
+  { value: 'chat_completions', label: 'Chat Completions' },
+  { value: 'responses', label: 'Responses' },
+  { value: 'messages', label: 'Messages' },
+];
+
+const STRATEGY_OPTIONS = [
+  { value: 'hub_and_spoke', label: 'Hub & Spoke（允许协议转换）' },
+  { value: 'native_only', label: 'Native Only（仅原生协议）' },
+];
+
+const parseProtocolsArray = (raw: string | undefined): string[] => {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+};
+
+const PROTOCOL_COLORS: Record<string, string> = {
+  chat_completions: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400',
+  responses: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400',
+  messages: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
 };
 
 export default function GroupsPage() {
@@ -71,6 +106,9 @@ export default function GroupsPage() {
   const [gfSubType, setGfSubType] = useState('standard');
   const [gfRpm, setGfRpm] = useState(0);
   const [gfValidity, setGfValidity] = useState(30);
+  const [gfProvider, setGfProvider] = useState('anthropic');
+  const [gfProtocols, setGfProtocols] = useState<Record<string, boolean>>({});
+  const [gfStrategy, setGfStrategy] = useState('hub_and_spoke');
 
   /* ─── fetch ─── */
   const fetchAll = useCallback(async () => {
@@ -137,6 +175,9 @@ export default function GroupsPage() {
     setGfSubType('standard');
     setGfRpm(0);
     setGfValidity(30);
+    setGfProvider('anthropic');
+    setGfProtocols({});
+    setGfStrategy('hub_and_spoke');
     setGroupModal(true);
   };
 
@@ -148,6 +189,12 @@ export default function GroupsPage() {
     setGfSubType(g.subscriptionType ?? 'standard');
     setGfRpm(g.rpmLimit ?? 0);
     setGfValidity(g.defaultValidityDays ?? 30);
+    setGfProvider(g.provider ?? 'anthropic');
+    const protocols = parseProtocolsArray(g.supportedProtocols);
+    const protoState: Record<string, boolean> = {};
+    PROTOCOL_OPTIONS.forEach((p) => { protoState[p.value] = protocols.includes(p.value); });
+    setGfProtocols(protoState);
+    setGfStrategy(g.protocolStrategy ?? 'hub_and_spoke');
     setGroupModal(true);
   };
 
@@ -162,6 +209,9 @@ export default function GroupsPage() {
         subscriptionType: gfSubType,
         rpmLimit: gfRpm,
         defaultValidityDays: gfValidity,
+        provider: gfProvider,
+        supportedProtocols: JSON.stringify(PROTOCOL_OPTIONS.filter((p) => gfProtocols[p.value]).map((p) => p.value)),
+        protocolStrategy: gfStrategy,
       };
       if (editTarget) {
         await groupsApi.update(editTarget.id, payload);
@@ -321,9 +371,25 @@ export default function GroupsPage() {
                   className="shrink-0 text-gray-400"
                 />
                 <span className="font-semibold text-gray-900 dark:text-white">{g.name}</span>
+                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${platformBadge[g.provider ?? 'anthropic'] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                  {g.provider ?? 'anthropic'}
+                </span>
                 <span className="text-xs text-gray-400 dark:text-dark-500">
                   倍率 ×{g.rateMultiplier ?? 1}
                 </span>
+                {(() => {
+                  const protocols = parseProtocolsArray(g.supportedProtocols);
+                  if (protocols.length === 0) return null;
+                  return (
+                    <span className="flex items-center gap-1">
+                      {protocols.map((proto) => (
+                        <span key={proto} className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600'}`}>
+                          {proto}
+                        </span>
+                      ))}
+                    </span>
+                  );
+                })()}
                 <span className="text-xs text-gray-400 dark:text-dark-500">
                   {gAccounts.length} 个号池
                 </span>
@@ -471,13 +537,54 @@ export default function GroupsPage() {
           </div>
         }
       >
-        <div className="space-y-4">
+        <div className="space-y-5">
           <Input label="名称" value={gfName} onChange={(e) => setGfName(e.target.value)} placeholder="输入分组名称" />
           <div>
             <label className="input-label">订阅类型</label>
             <Select options={subTypeOpts} value={gfSubType} onChange={setGfSubType} />
           </div>
           <Input label="描述" value={gfDesc} onChange={(e) => setGfDesc(e.target.value)} placeholder="可选" />
+
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              Provider 配置
+            </legend>
+            <div className="mt-1 space-y-3">
+              <div>
+                <label className="input-label">Provider 阵营</label>
+                <Select options={PROVIDER_OPTIONS} value={gfProvider} onChange={setGfProvider} />
+              </div>
+              <div>
+                <label className="input-label">支持的客户端协议</label>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {PROTOCOL_OPTIONS.map((p) => (
+                    <label
+                      key={p.value}
+                      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs cursor-pointer transition-colors ${
+                        gfProtocols[p.value]
+                          ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-600 dark:bg-violet-900/20 dark:text-violet-300'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={gfProtocols[p.value] ?? false}
+                        onChange={(e) => setGfProtocols((prev) => ({ ...prev, [p.value]: e.target.checked }))}
+                        className="sr-only"
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="input-label">协议转换策略</label>
+                <Select options={STRATEGY_OPTIONS} value={gfStrategy} onChange={setGfStrategy} />
+                <p className="mt-1 text-xs text-gray-400">Hub & Spoke 允许跨协议智能转换；Native Only 仅接受与上游原生匹配的请求。</p>
+              </div>
+            </div>
+          </fieldset>
+
           <div className="grid grid-cols-3 gap-3">
             <Input label="费率系数" type="number" value={gfRate} onChange={(e) => setGfRate(e.target.value)} placeholder="1.0" />
             <Input label="RPM 限制" type="number" value={String(gfRpm)} onChange={(e) => setGfRpm(Number(e.target.value) || 0)} placeholder="0" />

@@ -14,7 +14,8 @@ import { useToastStore } from '../stores/toastStore';
 // 常量
 // ---------------------------------------------------------------------------
 const PLATFORM_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
+  { value: 'openai', label: 'OpenAI (Chat Completions)' },
+  { value: 'openai_responses', label: 'OpenAI (Responses API)' },
   { value: 'anthropic', label: 'Anthropic Claude' },
   { value: 'gemini', label: 'Google Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
@@ -23,6 +24,7 @@ const PLATFORM_OPTIONS = [
 const TABS = [
   { key: 'all', label: '全部' },
   { key: 'openai', label: 'OpenAI' },
+  { key: 'openai_responses', label: 'Responses' },
   { key: 'anthropic', label: 'Anthropic' },
   { key: 'gemini', label: 'Gemini' },
   { key: 'antigravity', label: 'Antigravity' },
@@ -30,9 +32,29 @@ const TABS = [
 
 const platformBadge: Record<string, string> = {
   openai: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  openai_responses: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   anthropic: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   gemini: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
+const BILLING_MODE_OPTIONS = [
+  { value: 'token', label: 'Token 计费' },
+  { value: 'per_request', label: '按次计费' },
+  { value: 'image', label: '图片计费' },
+];
+
+const IMAGE_SIZE_OPTIONS = [
+  { value: '', label: '不区分尺寸' },
+  { value: '1K', label: '1K' },
+  { value: '2K', label: '2K' },
+  { value: '4K', label: '4K' },
+];
+
+const billingModeBadge: Record<string, string> = {
+  token: 'bg-gray-50 text-gray-600 dark:bg-dark-800 dark:text-dark-400',
+  per_request: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+  image: 'bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400',
 };
 
 const fmtPrice = (val: unknown) => {
@@ -68,6 +90,9 @@ export default function ModelPricesPage() {
   const [formEnabled, setFormEnabled] = useState(true);
   const [formNotes, setFormNotes] = useState('');
   const [formCacheExpanded, setFormCacheExpanded] = useState(false);
+  const [formBillingMode, setFormBillingMode] = useState('token');
+  const [formWildcardMatch, setFormWildcardMatch] = useState(false);
+  const [formImageSize, setFormImageSize] = useState('');
 
   const fetchPrices = useCallback(async () => {
     try {
@@ -122,6 +147,9 @@ export default function ModelPricesPage() {
     setFormEnabled(true);
     setFormNotes('');
     setFormCacheExpanded(false);
+    setFormBillingMode('token');
+    setFormWildcardMatch(false);
+    setFormImageSize('');
     setModalOpen(true);
   };
 
@@ -138,6 +166,9 @@ export default function ModelPricesPage() {
     setFormSupportsCacheBreakdown(p.supportsCacheBreakdown ?? false);
     setFormEnabled(p.enabled ?? true);
     setFormNotes(p.notes ?? '');
+    setFormBillingMode(p.billingMode ?? 'token');
+    setFormWildcardMatch(p.wildcardMatch ?? false);
+    setFormImageSize(p.imageSize ?? '');
     // 如果编辑的价格有缓存数据，默认展开缓存区域
     setFormCacheExpanded(
       (p.cacheWritePrice ?? 0) !== 0 || (p.cacheReadPrice ?? 0) !== 0
@@ -162,6 +193,9 @@ export default function ModelPricesPage() {
         supportsCacheBreakdown: formSupportsCacheBreakdown,
         enabled: formEnabled,
         notes: formNotes || undefined,
+        billingMode: formBillingMode,
+        wildcardMatch: formWildcardMatch,
+        imageSize: formImageSize || undefined,
       };
       if (editTarget) {
         await modelPricesApi.update(editTarget.id, payload);
@@ -342,11 +376,25 @@ export default function ModelPricesPage() {
 
                       {/* 平台 */}
                       <td className="px-4 py-3.5">
-                        <span
-                          className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[p.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
-                        >
-                          {p.platform}
-                        </span>
+                        <div className="space-y-1">
+                          <span
+                            className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[p.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                          >
+                            {p.platform}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <span
+                              className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${billingModeBadge[p.billingMode ?? 'token'] ?? billingModeBadge.token}`}
+                            >
+                              {p.billingMode === 'image' ? `图片${p.imageSize ? ` ${p.imageSize}` : ''}` : p.billingMode === 'per_request' ? '按次' : 'Token'}
+                            </span>
+                            {p.wildcardMatch && (
+                              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+                                通配
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </td>
 
                       {/* 输入价格 */}
@@ -422,6 +470,33 @@ export default function ModelPricesPage() {
               <Input label="输入价格" type="number" value={formInputPrice} onChange={(e) => setFormInputPrice(e.target.value)} placeholder="0" />
               <Input label="输出价格" type="number" value={formOutputPrice} onChange={(e) => setFormOutputPrice(e.target.value)} placeholder="0" />
             </div>
+          </fieldset>
+
+          {/* 计费模式 */}
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              计费配置
+            </legend>
+            <div className="mt-1 grid grid-cols-2 gap-3">
+              <div>
+                <label className="input-label">计费模式</label>
+                <Select options={BILLING_MODE_OPTIONS} value={formBillingMode} onChange={setFormBillingMode} />
+              </div>
+              {formBillingMode === 'image' && (
+                <div>
+                  <label className="input-label">图片尺寸</label>
+                  <Select options={IMAGE_SIZE_OPTIONS} value={formImageSize} onChange={setFormImageSize} />
+                </div>
+              )}
+            </div>
+            <div className="mt-3 flex items-center gap-3">
+              <Toggle checked={formWildcardMatch} onChange={setFormWildcardMatch} label="启用通配模式" />
+            </div>
+            {formWildcardMatch && (
+              <p className="mt-1 text-xs text-amber-500 dark:text-amber-400">
+                开启后将按通配符匹配模型名（如 claude-opus-*）。关闭则为精确匹配。
+              </p>
+            )}
           </fieldset>
 
           {/* 缓存价格（可折叠） */}

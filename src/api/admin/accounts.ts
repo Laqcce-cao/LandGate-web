@@ -27,6 +27,8 @@ export interface Account {
   sessionWindowEnd?: string;
   sessionWindowStatus?: string;
   supportedModels?: string;
+  supportedProtocols?: string;
+  mixedScheduling?: boolean;
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;

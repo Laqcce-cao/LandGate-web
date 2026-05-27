@@ -28,6 +28,9 @@ export interface Group {
   messagesDispatchModelConfig?: string;
   rpmLimit?: number;
   excludedModels?: string;
+  provider?: string;
+  supportedProtocols?: string;
+  protocolStrategy?: string;
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;

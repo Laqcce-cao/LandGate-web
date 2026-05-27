@@ -13,6 +13,9 @@ export interface ModelPrice {
   supportsCacheBreakdown?: boolean;
   enabled?: boolean;
   notes?: string;
+  billingMode?: string;
+  wildcardMatch?: boolean;
+  imageSize?: string;
   createdAt?: string;
   updatedAt?: string;
 }

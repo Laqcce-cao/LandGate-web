@@ -112,17 +112,41 @@ function buildEmptyCredValues(type: string): Record<string, string> {
 
 const PLATFORM_COLORS: Record<string, string> = {
   openai: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  openai_responses: 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   anthropic: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   gemini: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   antigravity: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
 const PLATFORM_OPTIONS = [
-  { value: 'openai', label: 'OpenAI' },
+  { value: 'openai', label: 'OpenAI (Chat Completions)' },
+  { value: 'openai_responses', label: 'OpenAI (Responses API)' },
   { value: 'anthropic', label: 'Anthropic Claude' },
   { value: 'gemini', label: 'Google Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
 ];
+
+const PROTOCOL_OPTIONS = [
+  { value: 'chat_completions', label: 'Chat Completions' },
+  { value: 'responses', label: 'Responses' },
+  { value: 'messages', label: 'Messages' },
+];
+
+const parseProtocolsArray = (raw: string | undefined): string[] => {
+  if (!raw) return [];
+  try {
+    const arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+};
+
+const PROTOCOL_COLORS: Record<string, string> = {
+  chat_completions: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400',
+  responses: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400',
+  messages: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
+};
 
 const TYPE_OPTIONS = [
   { value: 'api_key', label: 'API Key' },
@@ -166,6 +190,10 @@ export default function AccountsPage() {
   // ---- 凭证 & extra ----
   const [credValues, setCredValues] = useState<Record<string, string>>(buildEmptyCredValues('api_key'));
   const [extraBaseUrl, setExtraBaseUrl] = useState('');
+
+  // ---- 协议 & 混合调度 ----
+  const [accountProtocols, setAccountProtocols] = useState<Record<string, boolean>>({});
+  const [mixedScheduling, setMixedScheduling] = useState(false);
 
   // ---- OAuth 授权 ----
   const [oauthModalOpen, setOauthModalOpen] = useState(false);
@@ -360,6 +388,8 @@ export default function AccountsPage() {
     setExtraBaseUrl('');
     setConcurrency(3);
     setPriority(50);
+    setAccountProtocols({});
+    setMixedScheduling(false);
     setModalOpen(true);
   };
 
@@ -381,6 +411,11 @@ export default function AccountsPage() {
     setExtraBaseUrl(typeof (extra as Record<string, unknown>).base_url === 'string' ? (extra as Record<string, unknown>).base_url as string : '');
     setConcurrency(account.concurrency ?? 3);
     setPriority(account.priority ?? 50);
+    const protocols = parseProtocolsArray(account.supportedProtocols);
+    const protoState: Record<string, boolean> = {};
+    PROTOCOL_OPTIONS.forEach((p) => { protoState[p.value] = protocols.includes(p.value); });
+    setAccountProtocols(protoState);
+    setMixedScheduling(account.mixedScheduling ?? false);
     setModalOpen(true);
   };
 
@@ -405,6 +440,8 @@ export default function AccountsPage() {
         extra: JSON.stringify(extra),
         concurrency,
         priority,
+        supportedProtocols: JSON.stringify(PROTOCOL_OPTIONS.filter((p) => accountProtocols[p.value]).map((p) => p.value)),
+        mixedScheduling,
       };
       if (editTarget) {
         await accountsApi.update(editTarget.id, payload);
@@ -782,7 +819,25 @@ export default function AccountsPage() {
                         </span>
                       </td>
                       <td className="px-5 py-3.5">
-                        <span className="text-sm text-gray-500 dark:text-dark-400">{a.type}</span>
+                        <div className="space-y-1">
+                          <span className="text-sm text-gray-500 dark:text-dark-400">{a.type}</span>
+                          {(() => {
+                            const protocols = parseProtocolsArray(a.supportedProtocols);
+                            if (protocols.length === 0) return null;
+                            return (
+                              <div className="flex flex-wrap gap-0.5">
+                                {protocols.map((proto) => (
+                                  <span
+                                    key={proto}
+                                    className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                                  >
+                                    {proto}
+                                  </span>
+                                ))}
+                              </div>
+                            );
+                          })()}
+                        </div>
                       </td>
                       <td className="px-5 py-3.5 w-52">
                         <div className="flex items-center gap-1.5 min-w-0">
@@ -944,6 +999,42 @@ export default function AccountsPage() {
               <p className="text-xs text-gray-400">覆盖默认的 API 上游地址。例如 Anthropic 的 https://api.anthropic.com，留空则走官方默认。</p>
             </div>
           </fieldset>
+
+          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
+            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
+              上游协议支持 <span className="text-gray-400 font-normal">— 可多选</span>
+            </legend>
+            <div className="mt-1 flex flex-wrap gap-3">
+              {PROTOCOL_OPTIONS.map((p) => (
+                <label
+                  key={p.value}
+                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                    accountProtocols[p.value]
+                      ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-600 dark:bg-violet-900/20 dark:text-violet-300'
+                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={accountProtocols[p.value] ?? false}
+                    onChange={(e) => setAccountProtocols((prev) => ({ ...prev, [p.value]: e.target.checked }))}
+                    className="sr-only"
+                  />
+                  {p.label}
+                </label>
+              ))}
+            </div>
+            <p className="mt-2 text-xs text-gray-400">选择此账号支持的上游 API 协议类型，留空则不限制。</p>
+          </fieldset>
+
+          <div className="rounded-lg border border-gray-200 dark:border-dark-600 p-4">
+            <Toggle
+              checked={mixedScheduling}
+              onChange={setMixedScheduling}
+              label="允许跨 Provider 混合调度"
+            />
+            <p className="mt-1 text-xs text-gray-400">开启后此账号可被不同 Provider 的分组调度使用。</p>
+          </div>
         </div>
       </Modal>
 
@@ -1233,6 +1324,49 @@ export default function AccountsPage() {
                   </Button>
                 </div>
               </div>
+
+              {/* 上游协议 */}
+              {(() => {
+                const protocols = parseProtocolsArray(a.supportedProtocols);
+                if (protocols.length === 0) return null;
+                return (
+                  <>
+                    <div className="border-t border-gray-100 dark:border-dark-700" />
+                    <div>
+                      <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">
+                        <Icon name="externalLink" size="sm" className="inline mr-1.5 text-violet-500" />
+                        上游协议支持
+                      </h3>
+                      <div className="flex flex-wrap gap-2">
+                        {protocols.map((proto) => (
+                          <span
+                            key={proto}
+                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                          >
+                            {proto}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* 混合调度 */}
+              {(a.mixedScheduling ?? false) && (
+                <>
+                  <div className="border-t border-gray-100 dark:border-dark-700" />
+                  <div>
+                    <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-dark-300">
+                      <Icon name="globe" size="sm" className="inline mr-1.5 text-indigo-500" />
+                      混合调度
+                    </h3>
+                    <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
+                      已启用跨 Provider 调度
+                    </span>
+                  </div>
+                </>
+              )}
 
               {/* 分隔 */}
               <div className="border-t border-gray-100 dark:border-dark-700" />
