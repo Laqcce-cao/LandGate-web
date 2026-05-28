@@ -78,6 +78,9 @@ export default function UsersPage() {
   const [editTarget, setEditTarget] = useState<User | null>(null);
   const [saving, setSaving] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<User | null>(null);
+  const [rechargeTarget, setRechargeTarget] = useState<User | null>(null);
+  const [rechargeAmount, setRechargeAmount] = useState('');
+  const [recharging, setRecharging] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
   const [search, setSearch] = useState('');
@@ -189,6 +192,32 @@ export default function UsersPage() {
     }
   };
 
+  const openRecharge = (user: User) => {
+    setRechargeTarget(user);
+    setRechargeAmount('');
+  };
+
+  const handleRecharge = async () => {
+    if (!rechargeTarget) return;
+    const amount = Number(rechargeAmount);
+    if (!amount || amount <= 0) {
+      addToast({ type: 'error', message: '请输入有效的充值金额' });
+      return;
+    }
+    setRecharging(true);
+    try {
+      await usersApi.recharge(rechargeTarget.id, amount);
+      addToast({ type: 'success', message: `已为 ${rechargeTarget.username || rechargeTarget.email} 充值 $${amount.toFixed(2)}` });
+      setRechargeTarget(null);
+      setRechargeAmount('');
+      fetchUsers();
+    } catch {
+      addToast({ type: 'error', message: '充值失败' });
+    } finally {
+      setRecharging(false);
+    }
+  };
+
   const columns = [
     {
       key: 'id',
@@ -279,6 +308,9 @@ export default function UsersPage() {
       label: '操作',
       formatter: (_: unknown, row: User) => (
         <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" onClick={() => openRecharge(row)} title="充值">
+            <Icon name="dollar" size="sm" className="text-emerald-500" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
             <Icon name="edit" size="sm" />
           </Button>
@@ -510,6 +542,63 @@ export default function UsersPage() {
               placeholder="管理员备注（可选）"
             />
           </div>
+        </div>
+      </Modal>
+
+      {/* Recharge modal */}
+      <Modal
+        open={!!rechargeTarget}
+        onClose={() => setRechargeTarget(null)}
+        title="用户充值"
+        width="sm"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setRechargeTarget(null)}>取消</Button>
+            <Button onClick={handleRecharge} loading={recharging}>确认充值</Button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          {rechargeTarget && (
+            <div className="flex items-center gap-4 rounded-xl bg-gray-50 p-4 dark:bg-dark-800">
+              <UserAvatar user={rechargeTarget} size="md" />
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {rechargeTarget.username || rechargeTarget.email}
+                </p>
+                <p className="text-xs text-gray-500 dark:text-dark-400">{rechargeTarget.email}</p>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-gray-500 dark:text-dark-400">当前余额</span>
+              <span className="text-lg font-semibold text-emerald-600 dark:text-emerald-400 font-mono tabular-nums">
+                ${(rechargeTarget?.balance ?? 0).toFixed(2)}
+              </span>
+            </div>
+          </div>
+
+          <Input
+            label="充值金额 (USD)"
+            type="number"
+            value={rechargeAmount}
+            onChange={(e) => setRechargeAmount(e.target.value)}
+            placeholder="输入充值金额，如 50.00"
+            hint="充值后余额将加上此金额"
+          />
+
+          {rechargeAmount && Number(rechargeAmount) > 0 && (
+            <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-emerald-600 dark:text-emerald-400">充值后余额</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-300 font-mono tabular-nums">
+                  ${((rechargeTarget?.balance ?? 0) + Number(rechargeAmount)).toFixed(2)}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
 
