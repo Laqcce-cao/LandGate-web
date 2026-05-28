@@ -11,11 +11,8 @@ import ApiKeysPage from '../pages/ApiKeysPage';
 import AccountsPage from '../pages/AccountsPage';
 import OAuthCallbackPage from '../pages/OAuthCallbackPage';
 import GroupsPage from '../pages/GroupsPage';
-import PaymentsPage from '../pages/PaymentsPage';
-import PaymentDetailPage from '../pages/PaymentDetailPage';
 import UsagePage from '../pages/UsagePage';
 import AdminUsagePage from '../pages/AdminUsagePage';
-import MarketingPage from '../pages/MarketingPage';
 import ModelPricesPage from '../pages/ModelPricesPage';
 import UsersPage from '../pages/admin/UsersPage';
 import ApiKeysAdminPage from '../pages/admin/ApiKeysAdminPage';
@@ -105,10 +102,7 @@ export default function AppRouter() {
             <Route path="/admin/accounts" element={<AccountsPage />} />
             <Route path="/admin/oauth/callback" element={<OAuthCallbackPage />} />
             <Route path="/admin/groups" element={<GroupsPage />} />
-            <Route path="/admin/payments" element={<PaymentsPage />} />
-            <Route path="/admin/payments/:orderId" element={<PaymentDetailPage />} />
             <Route path="/admin/usage" element={<AdminUsagePage />} />
-            <Route path="/admin/marketing" element={<MarketingPage />} />
             <Route path="/admin/model-prices" element={<ModelPricesPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/api-keys" element={<ApiKeysAdminPage />} />

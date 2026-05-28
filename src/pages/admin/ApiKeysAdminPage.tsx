@@ -5,13 +5,62 @@ import { Button } from '../../components/ui/Button';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
 import { Select } from '../../components/ui/Select';
-import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Icon } from '../../components/ui/Icon';
-import { DataTable } from '../../components/ui/DataTable';
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Toggle } from '../../components/ui/Toggle';
 import { useToastStore } from '../../stores/toastStore';
+
+/* ── Helpers ── */
+
+function maskKey(key: string): string {
+  if (!key) return '';
+  if (key.length <= 12) return `${key.slice(0, 4)}***`;
+  return `${key.slice(0, 6)}...${key.slice(-4)}`;
+}
+
+function formatTime(val: unknown): string {
+  if (!val) return '—';
+  const d = new Date(String(val));
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit', second: '2-digit',
+  });
+}
+
+function formatRelativeTime(val: unknown): string {
+  if (!val) return '—';
+  const d = new Date(String(val));
+  if (isNaN(d.getTime())) return '—';
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffHr = Math.floor(diffMs / 3600000);
+  const diffDay = Math.floor(diffMs / 86400000);
+  if (diffMin < 1) return '刚刚';
+  if (diffMin < 60) return `${diffMin}分钟前`;
+  if (diffHr < 24) return `${diffHr}小时前`;
+  if (diffDay < 30) return `${diffDay}天前`;
+  return formatTime(val);
+}
+
+function formatExpiry(val: unknown): string {
+  if (!val) return '永久有效';
+  const d = new Date(String(val));
+  if (isNaN(d.getTime())) return '永久有效';
+  if (d < new Date()) return '已过期';
+  return d.toLocaleDateString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit' });
+}
+
+const statusConfig: Record<string, { label: string; cls: string }> = {
+  ACTIVE: { label: '活跃', cls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
+  DISABLED: { label: '已禁用', cls: 'bg-gray-100 text-gray-600 dark:bg-dark-700 dark:text-dark-400' },
+  EXPIRED: { label: '已过期', cls: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400' },
+  ERROR: { label: '异常', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+};
+
+/* ── Form ── */
 
 interface FormState {
   name: string;
@@ -27,15 +76,9 @@ interface FormState {
 }
 
 const defaultForm: FormState = {
-  name: '',
-  groupId: '',
-  quota: '',
-  rateLimit5h: '',
-  rateLimit1d: '',
-  rateLimit7d: '',
-  ipWhitelist: '',
-  ipBlacklist: '',
-  expiresAt: '',
+  name: '', groupId: '', quota: '',
+  rateLimit5h: '', rateLimit1d: '', rateLimit7d: '',
+  ipWhitelist: '', ipBlacklist: '', expiresAt: '',
   status: 'ACTIVE',
 };
 
@@ -68,10 +111,7 @@ function buildUpdatePayload(f: FormState): UpdateApiKeyAdminRequest {
   return payload;
 }
 
-function formatDateTime(iso: string | null): string {
-  if (!iso) return '-';
-  return new Date(iso).toLocaleString('zh-CN', { hour12: false });
-}
+/* ── Main Page ── */
 
 export default function ApiKeysAdminPage() {
   const [keys, setKeys] = useState<AdminApiKey[]>([]);
@@ -83,8 +123,12 @@ export default function ApiKeysAdminPage() {
   const [newKey, setNewKey] = useState<AdminApiKey | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminApiKey | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [editTarget, setEditTarget] = useState<AdminApiKey | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
+  const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
   const addToast = useToastStore((s) => s.addToast);
+
+  const groupMap = new Map(groups.map((g) => [g.id, g]));
 
   const fetchKeys = useCallback(async () => {
     setLoading(true);
@@ -98,9 +142,19 @@ export default function ApiKeysAdminPage() {
     }
   }, [addToast]);
 
+  const fetchGroups = useCallback(async () => {
+    try {
+      const { data } = await groupsApi.list();
+      setGroups(data.groups ?? []);
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     fetchKeys();
-  }, [fetchKeys]);
+    fetchGroups();
+  }, [fetchKeys, fetchGroups]);
+
+  /* ── Actions ── */
 
   const handleCreate = async () => {
     if (!form.name.trim()) return;
@@ -117,45 +171,7 @@ export default function ApiKeysAdminPage() {
     }
   };
 
-  const [editTarget, setEditTarget] = useState<AdminApiKey | null>(null);
-
-  const handleEditSave = async () => {
-    if (!editTarget) return;
-    setSaving(true);
-    try {
-      const { data } = await adminApiKeysApi.update(editTarget.id, buildUpdatePayload(form));
-      setKeys((prev) => prev.map((k) => (k.id === data.id ? data : k)));
-      addToast({ type: 'success', message: 'API Key 更新成功' });
-      setEditOpen(false);
-      setEditTarget(null);
-    } catch {
-      addToast({ type: 'error', message: '更新失败' });
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleCloseCreate = () => {
-    setCreateOpen(false);
-    setNewKey(null);
-    setForm({ ...defaultForm });
-  };
-
-  const openCreate = async () => {
-    try {
-      const { data } = await groupsApi.list();
-      setGroups(data.groups ?? []);
-    } catch { /* ignore */ }
-    setForm({ ...defaultForm });
-    setNewKey(null);
-    setCreateOpen(true);
-  };
-
   const openEdit = async (key: AdminApiKey) => {
-    try {
-      const { data } = await groupsApi.list();
-      setGroups(data.groups ?? []);
-    } catch { /* ignore */ }
     setEditTarget(key);
     setForm({
       name: key.name ?? '',
@@ -172,10 +188,33 @@ export default function ApiKeysAdminPage() {
     setEditOpen(true);
   };
 
-  const handleCopy = async (text: string) => {
+  const handleEditSave = async () => {
+    if (!editTarget) return;
+    setSaving(true);
     try {
-      await navigator.clipboard.writeText(text);
-      addToast({ type: 'success', message: '已复制到剪贴板' });
+      const { data } = await adminApiKeysApi.update(editTarget.id, buildUpdatePayload(form));
+      setKeys((prev) => prev.map((k) => (k.id === data.id ? data : k)));
+      addToast({ type: 'success', message: 'API Key 更新成功' });
+      setEditOpen(false); setEditTarget(null);
+    } catch {
+      addToast({ type: 'error', message: '更新失败' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCopy = async (text: string, keyId: number) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopiedKeyId(keyId);
+      setTimeout(() => setCopiedKeyId(null), 2000);
     } catch {
       addToast({ type: 'error', message: '复制失败' });
     }
@@ -200,10 +239,10 @@ export default function ApiKeysAdminPage() {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const renderFormFields = (showRequiredStar: boolean) => (
+  const renderFormFields = () => (
     <div className="space-y-4">
       <Input
-        label={showRequiredStar ? '名称 *' : '名称'}
+        label="名称 *"
         placeholder="输入 API Key 名称"
         value={form.name}
         onChange={(e) => updateFormField('name', e.target.value)}
@@ -213,10 +252,7 @@ export default function ApiKeysAdminPage() {
         <Select
           options={[
             { value: '', label: '不指定（默认分组）' },
-            ...groups.map((g) => ({
-              value: String(g.id),
-              label: `${g.name} (ID:${g.id})`,
-            })),
+            ...groups.map((g) => ({ value: String(g.id), label: `${g.name} (ID:${g.id})` })),
           ]}
           value={form.groupId}
           onChange={(v) => updateFormField('groupId', v)}
@@ -226,183 +262,283 @@ export default function ApiKeysAdminPage() {
         />
       </div>
       <div className="grid grid-cols-2 gap-4">
-        <Input
-          label="配额 (USD)"
-          type="number"
-          placeholder="0 = 不限制"
-          value={form.quota}
-          onChange={(e) => updateFormField('quota', e.target.value)}
-        />
-        <Input
-          label="过期时间"
-          type="datetime-local"
-          value={form.expiresAt}
-          onChange={(e) => updateFormField('expiresAt', e.target.value)}
-        />
+        <Input label="配额 (USD)" type="number" placeholder="0 = 不限制" value={form.quota} onChange={(e) => updateFormField('quota', e.target.value)} />
+        <Input label="过期时间" type="datetime-local" value={form.expiresAt} onChange={(e) => updateFormField('expiresAt', e.target.value)} />
       </div>
       <div className="grid grid-cols-3 gap-4">
-        <Input
-          label="5小时速率限制"
-          type="number"
-          placeholder="0 = 不限制"
-          value={form.rateLimit5h}
-          onChange={(e) => updateFormField('rateLimit5h', e.target.value)}
-        />
-        <Input
-          label="1天速率限制"
-          type="number"
-          placeholder="0 = 不限制"
-          value={form.rateLimit1d}
-          onChange={(e) => updateFormField('rateLimit1d', e.target.value)}
-        />
-        <Input
-          label="7天速率限制"
-          type="number"
-          placeholder="0 = 不限制"
-          value={form.rateLimit7d}
-          onChange={(e) => updateFormField('rateLimit7d', e.target.value)}
-        />
+        <Input label="5小时限制" type="number" placeholder="0 = 不限制" value={form.rateLimit5h} onChange={(e) => updateFormField('rateLimit5h', e.target.value)} />
+        <Input label="1天限制" type="number" placeholder="0 = 不限制" value={form.rateLimit1d} onChange={(e) => updateFormField('rateLimit1d', e.target.value)} />
+        <Input label="7天限制" type="number" placeholder="0 = 不限制" value={form.rateLimit7d} onChange={(e) => updateFormField('rateLimit7d', e.target.value)} />
       </div>
-      <Input
-        label="IP 白名单"
-        placeholder="JSON 数组, 如: [&quot;1.2.3.4&quot;]"
-        value={form.ipWhitelist}
-        onChange={(e) => updateFormField('ipWhitelist', e.target.value)}
-      />
-      <Input
-        label="IP 黑名单"
-        placeholder="JSON 数组, 如: [&quot;5.6.7.8&quot;]"
-        value={form.ipBlacklist}
-        onChange={(e) => updateFormField('ipBlacklist', e.target.value)}
-      />
+      <Input label="IP 白名单" placeholder='JSON 数组, 如: ["1.2.3.4"]' value={form.ipWhitelist} onChange={(e) => updateFormField('ipWhitelist', e.target.value)} />
+      <Input label="IP 黑名单" placeholder='JSON 数组, 如: ["5.6.7.8"]' value={form.ipBlacklist} onChange={(e) => updateFormField('ipBlacklist', e.target.value)} />
       <div>
         <label className="input-label">状态</label>
-        <div className="flex items-center gap-3 mt-1">
-          <Toggle
-            checked={form.status === 'ACTIVE'}
-            onChange={(on) => updateFormField('status', on ? 'ACTIVE' : 'DISABLED')}
-            label={form.status === 'ACTIVE' ? '启用' : '禁用'}
-          />
+        <div className="mt-1 flex items-center gap-3">
+          <Toggle checked={form.status === 'ACTIVE'} onChange={(on) => updateFormField('status', on ? 'ACTIVE' : 'DISABLED')} label={form.status === 'ACTIVE' ? '启用' : '禁用'} />
         </div>
       </div>
     </div>
   );
 
-  const columns = [
-    { key: 'id', label: 'ID', formatter: (val: unknown) => <span className="text-xs text-gray-500">#{String(val)}</span> },
-    { key: 'name', label: '名称' },
-    {
-      key: 'key',
-      label: 'Key',
-      formatter: (val: unknown) => (
-        <div className="flex items-center gap-1.5 max-w-[200px]">
-          <code className="code text-xs truncate">{String(val ?? '')}</code>
-          <button
-            onClick={() => handleCopy(String(val ?? ''))}
-            className="shrink-0 rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700"
-            title="复制"
-          >
-            <Icon name="copy" size="xs" />
-          </button>
-        </div>
-      ),
-    },
-    {
-      key: 'status',
-      label: '状态',
-      formatter: (val: unknown) => <StatusBadge status={String(val ?? 'ACTIVE')} />,
-    },
-    {
-      key: 'quota',
-      label: '配额',
-      formatter: (_: unknown, row: AdminApiKey) => (
-        <span className="text-xs">
-          {row.quota > 0 ? `$${row.quota.toFixed(2)} / $${row.quotaUsed.toFixed(2)}` : '-'}
-        </span>
-      ),
-    },
-    {
-      key: 'expiresAt',
-      label: '过期时间',
-      formatter: (_: unknown, row: AdminApiKey) => (
-        <span className="text-xs">{formatDateTime(row.expiresAt)}</span>
-      ),
-    },
-    {
-      key: 'actions',
-      label: '操作',
-      formatter: (_: unknown, row: AdminApiKey) => (
-        <div className="flex items-center gap-1">
-          <Button variant="ghost" size="sm" onClick={() => openEdit(row)}>
-            <Icon name="edit" size="sm" />
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(row)}>
-            <Icon name="trash" size="sm" />
-          </Button>
-        </div>
-      ),
-    },
-  ];
+  /* ── Row renderer ── */
+
+  const renderKeyRow = (key: AdminApiKey) => {
+    const group = key.groupId ? groupMap.get(key.groupId) : undefined;
+    const sc = statusConfig[key.status] ?? statusConfig.ACTIVE;
+    const isCopied = copiedKeyId === key.id;
+    const isExpired = key.expiresAt && new Date(key.expiresAt) < new Date();
+
+    return (
+      <tr key={key.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/80 dark:border-dark-700/50 dark:hover:bg-dark-800/30">
+        {/* ID */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <span className="text-xs text-gray-400 dark:text-dark-500">#{key.id}</span>
+        </td>
+
+        {/* 名称 */}
+        <td className="whitespace-nowrap px-4 py-3">
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-medium text-gray-900 dark:text-white">{key.name}</span>
+            {(key.ipWhitelist || key.ipBlacklist) && (
+              <Icon name="lock" size="xs" className="text-blue-500" />
+            )}
+          </div>
+        </td>
+
+        {/* API 密钥 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <div className="flex items-center gap-2">
+            <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-600 dark:bg-dark-700 dark:text-dark-300">
+              {maskKey(key.key)}
+            </code>
+            <button
+              onClick={() => handleCopy(key.key, key.id)}
+              className={`rounded-lg p-1 transition-colors ${
+                isCopied ? 'text-emerald-500' : 'text-gray-400 hover:bg-gray-100 hover:text-gray-600 dark:hover:bg-dark-700 dark:hover:text-gray-300'
+              }`}
+              title={isCopied ? '已复制' : '复制密钥'}
+            >
+              <Icon name={isCopied ? 'check' : 'copy'} size="sm" />
+            </button>
+          </div>
+        </td>
+
+        {/* 用户 ID */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <span className="text-sm text-gray-600 dark:text-dark-300">{key.userId}</span>
+        </td>
+
+        {/* 分组 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          {group ? (
+            <span className="inline-block rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-600 dark:bg-violet-900/20 dark:text-violet-400">
+              {group.name}
+            </span>
+          ) : (
+            <span className="text-sm text-gray-400 dark:text-dark-500">—</span>
+          )}
+        </td>
+
+        {/* 配额 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          {key.quota > 0 ? (
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span className={`font-medium tabular-nums text-sm ${
+                  key.quotaUsed >= key.quota ? 'text-red-500' :
+                  key.quotaUsed >= key.quota * 0.8 ? 'text-yellow-500' :
+                  'text-gray-900 dark:text-white'
+                }`}>
+                  ${key.quotaUsed?.toFixed(2) || '0.00'} / ${key.quota?.toFixed(2)}
+                </span>
+              </div>
+              <div className="mt-1 h-1.5 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-dark-600">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    key.quotaUsed >= key.quota ? 'bg-red-500' :
+                    key.quotaUsed >= key.quota * 0.8 ? 'bg-yellow-500' :
+                    'bg-primary-500'
+                  }`}
+                  style={{ width: `${Math.min((key.quotaUsed / key.quota) * 100, 100)}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <span className="text-sm text-gray-400 dark:text-dark-500">—</span>
+          )}
+        </td>
+
+        {/* 速率限制 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          {key.rateLimit5h > 0 || key.rateLimit1d > 0 || key.rateLimit7d > 0 ? (
+            <div className="space-y-0.5 text-xs">
+              {key.rateLimit5h > 0 && <div className="text-gray-600 dark:text-dark-300">5h: ${key.usage5h?.toFixed(2) || '0.00'}/${key.rateLimit5h}</div>}
+              {key.rateLimit1d > 0 && <div className="text-gray-600 dark:text-dark-300">1d: ${key.usage1d?.toFixed(2) || '0.00'}/${key.rateLimit1d}</div>}
+              {key.rateLimit7d > 0 && <div className="text-gray-600 dark:text-dark-300">7d: ${key.usage7d?.toFixed(2) || '0.00'}/${key.rateLimit7d}</div>}
+            </div>
+          ) : (
+            <span className="text-sm text-gray-400 dark:text-dark-500">—</span>
+          )}
+        </td>
+
+        {/* 过期时间 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <span className={`text-sm ${isExpired ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'}`}>
+            {formatExpiry(key.expiresAt)}
+          </span>
+        </td>
+
+        {/* 状态 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sc.cls}`}>
+            {sc.label}
+          </span>
+        </td>
+
+        {/* 上次使用 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <span className="text-sm text-gray-500 dark:text-dark-400">{formatRelativeTime(key.lastUsedAt)}</span>
+        </td>
+
+        {/* 创建时间 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <span className="text-sm text-gray-500 dark:text-dark-400">{formatTime(key.createdAt)}</span>
+        </td>
+
+        {/* 操作 */}
+        <td className="whitespace-nowrap px-3 py-3">
+          <div className="flex items-center gap-1">
+            <button
+              onClick={() => handleCopy(key.key, key.id)}
+              className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+              title="复制密钥"
+            >
+              <Icon name="copy" size="sm" />
+              <span className="text-xs">复制</span>
+            </button>
+            <button
+              onClick={() => openEdit(key)}
+              className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+              title="编辑"
+            >
+              <Icon name="edit" size="sm" />
+              <span className="text-xs">编辑</span>
+            </button>
+            <button
+              onClick={() => setDeleteTarget(key)}
+              className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+              title="删除"
+            >
+              <Icon name="trash" size="sm" />
+              <span className="text-xs">删除</span>
+            </button>
+          </div>
+        </td>
+      </tr>
+    );
+  };
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500 dark:text-dark-400">管理您的 API 密钥，支持配额、速率限制、IP 黑白名单等高级配置</p>
-        <Button onClick={openCreate}>
+      {/* Header */}
+      <div className="mb-5 flex items-center justify-end gap-3">
+        <button
+          onClick={() => { fetchKeys(); fetchGroups(); }}
+          disabled={loading}
+          className="btn btn-secondary"
+          title="刷新"
+        >
+          <Icon name="refresh" size="md" className={loading ? 'animate-spin' : ''} />
+        </button>
+        <Button onClick={() => { setForm({ ...defaultForm }); setNewKey(null); setCreateOpen(true); }}>
           <Icon name="plus" size="sm" />
           创建 API Key
         </Button>
       </div>
 
-      <div className="card">
-        {loading ? (
-          <div className="flex justify-center py-12">
-            <LoadingSpinner size="lg" />
+      {loading ? (
+        <div className="flex justify-center py-16">
+          <LoadingSpinner size="lg" />
+        </div>
+      ) : keys.length === 0 ? (
+        <div className="card flex flex-col items-center gap-4 py-20">
+          <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
+            <Icon name="key" size="xl" className="text-violet-400 dark:text-violet-500" />
           </div>
-        ) : (
-          <DataTable columns={columns} data={keys} />
-        )}
-      </div>
+          <div className="text-center">
+            <p className="text-sm font-medium text-gray-600 dark:text-dark-300">暂无 API Key</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">创建一个 API Key 以开始</p>
+          </div>
+          <Button variant="secondary" onClick={() => { setForm({ ...defaultForm }); setNewKey(null); setCreateOpen(true); }}>
+            <Icon name="plus" size="sm" />
+            创建第一个 Key
+          </Button>
+        </div>
+      ) : (
+        <div className="card overflow-x-auto">
+          <table className="w-full min-w-[1300px]">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-dark-400">
+                <th className="px-3 py-2.5 text-left">ID</th>
+                <th className="px-4 py-2.5 text-left">名称</th>
+                <th className="px-3 py-2.5 text-left">API 密钥</th>
+                <th className="px-3 py-2.5 text-left">用户</th>
+                <th className="px-3 py-2.5 text-left">分组</th>
+                <th className="px-3 py-2.5 text-left">配额</th>
+                <th className="px-3 py-2.5 text-left">速率限制</th>
+                <th className="px-3 py-2.5 text-left">过期时间</th>
+                <th className="px-3 py-2.5 text-left">状态</th>
+                <th className="px-3 py-2.5 text-left">上次使用</th>
+                <th className="px-3 py-2.5 text-left">创建时间</th>
+                <th className="px-3 py-2.5 text-left">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {keys.map(renderKeyRow)}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Create modal */}
       <Modal
         open={createOpen}
-        onClose={handleCloseCreate}
+        onClose={() => { setCreateOpen(false); setNewKey(null); setForm({ ...defaultForm }); }}
         title="创建 API Key"
         width="normal"
         footer={
           newKey ? (
-            <Button variant="secondary" onClick={handleCloseCreate}>关闭</Button>
+            <Button variant="secondary" onClick={() => { setCreateOpen(false); setNewKey(null); setForm({ ...defaultForm }); }}>关闭</Button>
           ) : (
             <div className="flex justify-end gap-3">
-              <Button variant="secondary" onClick={handleCloseCreate}>取消</Button>
-              <Button onClick={handleCreate} loading={saving}>创建</Button>
+              <Button variant="secondary" onClick={() => { setCreateOpen(false); setNewKey(null); setForm({ ...defaultForm }); }}>取消</Button>
+              <Button onClick={handleCreate} loading={saving} disabled={!form.name.trim()}>创建</Button>
             </div>
           )
         }
       >
         {newKey ? (
-          <div className="space-y-4">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
-              <p className="mb-2 text-sm font-medium text-emerald-700 dark:text-emerald-400">
-                API Key 创建成功
-              </p>
-              <p className="mb-3 text-xs text-emerald-600 dark:text-emerald-500">
-                请立即保存此 Key，关闭后将无法再次查看完整 Key。
-              </p>
-              <div className="flex items-center gap-2">
-                <code className="flex-1 break-all rounded-lg bg-white px-3 py-2 text-sm font-mono text-gray-900 dark:bg-dark-900 dark:text-white">
-                  {newKey.key}
-                </code>
-                <Button size="sm" onClick={() => handleCopy(newKey.key)}>
-                  <Icon name="copy" size="sm" />
-                  复制
-                </Button>
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 dark:border-emerald-800 dark:bg-emerald-900/20">
+            <div className="mb-2 flex items-center gap-2">
+              <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-500">
+                <Icon name="check" size="xs" className="text-white" />
               </div>
+              <p className="text-sm font-medium text-emerald-700 dark:text-emerald-400">API Key 创建成功</p>
+            </div>
+            <p className="mb-3 text-xs text-emerald-600 dark:text-emerald-500">请立即保存此 Key，关闭后将无法再次查看完整 Key。</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 break-all rounded-lg bg-white px-3 py-2.5 text-sm font-mono text-gray-900 dark:bg-dark-900 dark:text-white">
+                {newKey.key}
+              </code>
+              <Button size="sm" onClick={() => handleCopy(newKey.key, newKey.id)}>
+                <Icon name="copy" size="sm" />
+                复制
+              </Button>
             </div>
           </div>
         ) : (
-          renderFormFields(true)
+          renderFormFields()
         )}
       </Modal>
 
@@ -419,7 +555,7 @@ export default function ApiKeysAdminPage() {
           </div>
         }
       >
-        {renderFormFields(false)}
+        {renderFormFields()}
       </Modal>
 
       {/* Delete confirm */}

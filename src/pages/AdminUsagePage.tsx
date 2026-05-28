@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
@@ -7,10 +7,6 @@ import { Icon, type IconName } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
 
 type FilterType = 'all' | 'user' | 'key' | 'account';
-
-// ---------------------------------------------------------------------------
-// 格式化工具
-// ---------------------------------------------------------------------------
 
 const platformConfig: Record<string, { label: string; color: string }> = {
   ANTHROPIC: { label: 'Anthropic', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
@@ -62,10 +58,6 @@ function formatTime(val: unknown): string {
   return `${full} (${relative})`;
 }
 
-// ---------------------------------------------------------------------------
-// 组件
-// ---------------------------------------------------------------------------
-
 export default function AdminUsagePage() {
   const [logs, setLogs] = useState<UsageLog[]>([]);
   const [total, setTotal] = useState(0);
@@ -73,6 +65,7 @@ export default function AdminUsagePage() {
   const [page, setPage] = useState(0);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterId, setFilterId] = useState('');
+  const [exporting, setExporting] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
   const PAGE_SIZE = 20;
@@ -119,23 +112,69 @@ export default function AdminUsagePage() {
     if (e.key === 'Enter') handleSearch();
   };
 
-  // -------------------------------------------------------------------------
-  // 统计摘要 (基于当前页数据)
-  // -------------------------------------------------------------------------
-  const stats = useMemo(() => {
-    if (logs.length === 0) return null;
-    const totalInputTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0), 0);
-    const totalCacheRead = logs.reduce((s, l) => s + (l.cacheReadTokens ?? 0), 0);
-    const totalOutputTokens = logs.reduce((s, l) => s + (l.outputTokens ?? 0), 0);
-    const totalTokens = totalInputTokens + totalCacheRead + totalOutputTokens;
-    const totalCost = logs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
-    const uniqueUsers = new Set(logs.map((l) => l.userId).filter(Boolean)).size;
-    return { totalInputTokens, totalCacheRead, totalOutputTokens, totalTokens, totalCost, uniqueUsers };
-  }, [logs]);
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const allLogs: UsageLog[] = [];
+      let p = 0;
+      while (true) {
+        let res;
+        const id = Number(filterId);
+        switch (filterType) {
+          case 'user':
+            res = id ? await usageApi.byUser(id, p, 500) : await usageApi.list(p, 500);
+            break;
+          case 'key':
+            res = id ? await usageApi.byApiKey(id, p, 500) : await usageApi.list(p, 500);
+            break;
+          case 'account':
+            res = id ? await usageApi.byAccount(id, p, 500) : await usageApi.list(p, 500);
+            break;
+          default:
+            res = await usageApi.list(p, 500);
+        }
+        const batch = res.data.logs ?? [];
+        allLogs.push(...batch);
+        if (batch.length < 500 || allLogs.length >= (res.data.total ?? 0)) break;
+        p++;
+      }
 
-  // -------------------------------------------------------------------------
-  // 表格列定义
-  // -------------------------------------------------------------------------
+      const header = ['时间', '用户ID', 'API Key ID', '模型', '平台', '分组', '计费模式', '输入Token', '缓存读Token', '输出Token', '总Token', '费用(USD)', '倍率', '耗时(ms)', '首字耗时(ms)', 'IP地址'];
+      const rows = allLogs.map((l) => [
+        l.createdAt ?? '',
+        l.userId ?? '',
+        l.apiKeyId ?? '',
+        l.model ?? '',
+        l.platform ?? '',
+        l.groupId ?? '',
+        l.billingMode ?? '',
+        l.inputTokens ?? 0,
+        l.cacheReadTokens ?? 0,
+        l.outputTokens ?? 0,
+        (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0) + (l.cacheCreationTokens ?? 0),
+        (l.totalCost ?? 0).toFixed(6),
+        ((l.rateMultiplier ?? 1) * (l.accountRateMultiplier ?? 1)).toFixed(2),
+        l.durationMs ?? 0,
+        l.firstTokenMs ?? 0,
+        l.ipAddress ?? '',
+      ]);
+
+      const csvContent = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `usage_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast({ type: 'success', message: `已导出 ${allLogs.length} 条记录` });
+    } catch {
+      addToast({ type: 'error', message: '导出失败' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const columns = [
     {
       key: 'createdAt',
@@ -294,9 +333,6 @@ export default function AdminUsagePage() {
     },
   ];
 
-  // -------------------------------------------------------------------------
-  // 筛选器配置
-  // -------------------------------------------------------------------------
   const filterOptions: { value: FilterType; label: string; icon: IconName; placeholder: string }[] = [
     { value: 'all', label: '全部', icon: 'menu', placeholder: '' },
     { value: 'user', label: '用户', icon: 'user', placeholder: '输入用户 ID' },
@@ -306,72 +342,8 @@ export default function AdminUsagePage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // -------------------------------------------------------------------------
-  // 渲染
-  // -------------------------------------------------------------------------
   return (
     <div className="space-y-4">
-      {/* 统计摘要卡片 */}
-      {stats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-              <Icon name="sparkles" size="sm" className="text-violet-600 dark:text-violet-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">输入令牌</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalInputTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-              <Icon name="inbox" size="sm" className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">缓存读</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalCacheRead)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-              <Icon name="arrowRight" size="sm" className="text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">输出令牌</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalOutputTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/30">
-              <Icon name="dollar" size="sm" className="text-rose-600 dark:text-rose-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">总费用</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatCost(stats.totalCost)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-              <Icon name="users" size="sm" className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">用户数</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {stats.uniqueUsers}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 筛选栏 */}
       <div className="card px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-3">
@@ -391,29 +363,35 @@ export default function AdminUsagePage() {
               </button>
             ))}
           </div>
-          {filterType !== 'all' && (
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder={filterOptions.find((o) => o.value === filterType)?.placeholder}
-                value={filterId}
-                onChange={(e) => setFilterId(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="w-44"
-              />
-              <Button onClick={handleSearch}>
-                <Icon name="search" size="sm" />
-                查询
-              </Button>
-              {filterId && (
-                <button
-                  className="text-sm text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200"
-                  onClick={() => { setFilterId(''); setPage(0); }}
-                >
-                  清除
-                </button>
-              )}
-            </div>
-          )}
+          <div className="flex items-center gap-2">
+            {filterType !== 'all' && (
+              <>
+                <Input
+                  placeholder={filterOptions.find((o) => o.value === filterType)?.placeholder}
+                  value={filterId}
+                  onChange={(e) => setFilterId(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  className="w-44"
+                />
+                <Button onClick={handleSearch}>
+                  <Icon name="search" size="sm" />
+                  查询
+                </Button>
+                {filterId && (
+                  <button
+                    className="text-sm text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200"
+                    onClick={() => { setFilterId(''); setPage(0); }}
+                  >
+                    清除
+                  </button>
+                )}
+              </>
+            )}
+            <Button variant="secondary" onClick={handleExportCsv} loading={exporting}>
+              <Icon name="download" size="sm" />
+              导出 CSV
+            </Button>
+          </div>
         </div>
       </div>
 

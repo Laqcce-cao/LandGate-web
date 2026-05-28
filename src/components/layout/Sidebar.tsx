@@ -16,9 +16,7 @@ const adminNavItems = [
   { path: '/admin/accounts', label: '上游账号', icon: 'server' as const },
   { path: '/admin/groups', label: '分组管理', icon: 'users' as const },
   { path: '/admin/model-prices', label: '模型价格', icon: 'dollar' as const },
-  { path: '/admin/payments', label: '支付管理', icon: 'creditCard' as const },
   { path: '/admin/usage', label: '用量计费', icon: 'chartBar' as const },
-  { path: '/admin/marketing', label: '营销管理', icon: 'gift' as const },
   { path: '/admin/users', label: '用户管理', icon: 'userCircle' as const },
   { path: '/admin/api-keys', label: 'API密钥', icon: 'key' as const },
 ];
