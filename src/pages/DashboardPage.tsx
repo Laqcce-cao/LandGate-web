@@ -76,7 +76,7 @@ function TimeRangeBar({ preset, onStartChange, onEndChange, onPresetChange, star
   const isCustom = preset === 'custom';
 
   return (
-    <div className="card flex flex-wrap items-center gap-3 px-4 py-3">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
       {/* Preset tabs */}
       <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
         {PRESETS.map((p) => (
@@ -111,19 +111,64 @@ function TimeRangeBar({ preset, onStartChange, onEndChange, onPresetChange, star
   );
 }
 
-// ─── Stat Card (sub2api style) ─────────────────────────────
+// ─── Stat Card (gradient style) ────────────────────────────
 
-const COLOR_MAP: Record<string, { bg: string; text: string }> = {
-  blue:    { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
-  purple:  { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-  green:   { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400' },
-  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400' },
-  amber:   { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400' },
-  indigo:  { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-600 dark:text-indigo-400' },
-  violet:  { bg: 'bg-violet-100 dark:bg-violet-900/30', text: 'text-violet-600 dark:text-violet-400' },
-  rose:    { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-600 dark:text-rose-400' },
-  cyan:    { bg: 'bg-cyan-100 dark:bg-cyan-900/30', text: 'text-cyan-600 dark:text-cyan-400' },
-  teal:    { bg: 'bg-teal-100 dark:bg-teal-900/30', text: 'text-teal-600 dark:text-teal-400' },
+interface CardColorScheme {
+  gradient: string;
+  glow: string;
+  text: string;
+  iconBg: string;
+}
+
+const COLOR_MAP: Record<string, CardColorScheme> = {
+  emerald: {
+    gradient: 'from-emerald-500/10 via-teal-500/5 to-transparent dark:from-emerald-500/15 dark:via-teal-500/10',
+    glow: 'shadow-emerald-500/5',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    iconBg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
+  },
+  indigo: {
+    gradient: 'from-indigo-500/10 via-violet-500/5 to-transparent dark:from-indigo-500/15 dark:via-violet-500/10',
+    glow: 'shadow-indigo-500/5',
+    text: 'text-indigo-600 dark:text-indigo-400',
+    iconBg: 'bg-gradient-to-br from-indigo-400 to-violet-500',
+  },
+  blue: {
+    gradient: 'from-blue-500/10 via-cyan-500/5 to-transparent dark:from-blue-500/15 dark:via-cyan-500/10',
+    glow: 'shadow-blue-500/5',
+    text: 'text-blue-600 dark:text-blue-400',
+    iconBg: 'bg-gradient-to-br from-blue-400 to-cyan-500',
+  },
+  rose: {
+    gradient: 'from-rose-500/10 via-pink-500/5 to-transparent dark:from-rose-500/15 dark:via-pink-500/10',
+    glow: 'shadow-rose-500/5',
+    text: 'text-rose-600 dark:text-rose-400',
+    iconBg: 'bg-gradient-to-br from-rose-400 to-pink-500',
+  },
+  amber: {
+    gradient: 'from-amber-500/10 via-orange-500/5 to-transparent dark:from-amber-500/15 dark:via-orange-500/10',
+    glow: 'shadow-amber-500/5',
+    text: 'text-amber-600 dark:text-amber-400',
+    iconBg: 'bg-gradient-to-br from-amber-400 to-orange-500',
+  },
+  violet: {
+    gradient: 'from-violet-500/10 via-purple-500/5 to-transparent dark:from-violet-500/15 dark:via-purple-500/10',
+    glow: 'shadow-violet-500/5',
+    text: 'text-violet-600 dark:text-violet-400',
+    iconBg: 'bg-gradient-to-br from-violet-400 to-purple-500',
+  },
+  cyan: {
+    gradient: 'from-cyan-500/10 via-sky-500/5 to-transparent dark:from-cyan-500/15 dark:via-sky-500/10',
+    glow: 'shadow-cyan-500/5',
+    text: 'text-cyan-600 dark:text-cyan-400',
+    iconBg: 'bg-gradient-to-br from-cyan-400 to-sky-500',
+  },
+  teal: {
+    gradient: 'from-teal-500/10 via-emerald-500/5 to-transparent dark:from-teal-500/15 dark:via-emerald-500/10',
+    glow: 'shadow-teal-500/5',
+    text: 'text-teal-600 dark:text-teal-400',
+    iconBg: 'bg-gradient-to-br from-teal-400 to-emerald-500',
+  },
 };
 
 function DashboardStatCard({ icon, color, label, value, subtext }: {
@@ -135,16 +180,22 @@ function DashboardStatCard({ icon, color, label, value, subtext }: {
 }) {
   const c = COLOR_MAP[color];
   return (
-    <div className="card p-4">
-      <div className="flex items-center gap-3">
-        <div className={clsx('rounded-lg p-2', c.bg)}>
-          <Icon name={icon} size="md" className={c.text} />
+    <div className={clsx(
+      'group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-4 transition-all duration-300',
+      'hover:shadow-lg dark:border-dark-700/50 dark:bg-dark-800',
+      c.glow,
+    )}>
+      {/* Gradient overlay */}
+      <div className={clsx('pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100', c.gradient)} />
+      <div className="relative flex items-center gap-3">
+        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm', c.iconBg)}>
+          <Icon name={icon} size="md" className="text-white" />
         </div>
         <div>
-          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
-          <p className="text-xl font-bold text-gray-900 dark:text-white">{value}</p>
+          <p className="text-xs font-medium text-gray-400 dark:text-dark-500">{label}</p>
+          <p className="text-xl font-bold tracking-tight text-gray-900 dark:text-white">{value}</p>
           {subtext && (
-            <p className="text-xs text-green-600 dark:text-green-400">{subtext}</p>
+            <p className={clsx('text-xs font-medium', c.text)}>{subtext}</p>
           )}
         </div>
       </div>
@@ -154,10 +205,16 @@ function DashboardStatCard({ icon, color, label, value, subtext }: {
 
 // ─── Chart Colors ───────────────────────────────────────────
 
-const CHART_COLORS = [
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
-  '#ec4899', '#f43f5e', '#f97316', '#eab308',
-  '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+const CHART_COLORS_LIGHT = [
+  '#818cf8', '#a78bfa', '#c084fc', '#e879f9',
+  '#f472b6', '#fb7185', '#fb923c', '#fbbf24',
+  '#4ade80', '#2dd4bf', '#22d3ee', '#60a5fa',
+];
+
+const CHART_COLORS_DARK = [
+  '#a5b4fc', '#c4b5fd', '#d8b4fe', '#f0abfc',
+  '#f9a8d4', '#fda4af', '#fdba74', '#fcd34d',
+  '#86efac', '#5eead4', '#67e8f9', '#93c5fd',
 ];
 
 // ─── Model Distribution Chart ───────────────────────────────
@@ -167,6 +224,7 @@ function ModelDistributionCard({ data, loading, isDark }: {
   loading: boolean;
   isDark: boolean;
 }) {
+  const colors = isDark ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
   const sorted = useMemo(() => [...data].sort((a, b) => b.totalTokens - a.totalTokens), [data]);
   const top = useMemo(() => {
     const t = sorted.slice(0, 10);
@@ -180,7 +238,7 @@ function ModelDistributionCard({ data, loading, isDark }: {
   }, [sorted]);
 
   return (
-    <div className="card p-4">
+    <div className="group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
       <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">模型分布</h3>
       {loading ? (
         <div className="flex h-64 items-center justify-center">
@@ -201,18 +259,21 @@ function ModelDistributionCard({ data, loading, isDark }: {
                   cy="50%"
                   innerRadius={55}
                   outerRadius={100}
-                  paddingAngle={1}
+                  paddingAngle={2}
+                  cornerRadius={3}
                 >
                   {top.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    <Cell key={i} fill={colors[i % colors.length]} stroke="none" />
                   ))}
                 </Pie>
                 <ReTooltip
                   contentStyle={{
-                    background: isDark ? '#1e1e2e' : '#fff',
-                    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-                    borderRadius: 8,
+                    background: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(8px)',
+                    border: `1px solid ${isDark ? 'rgba(55,65,81,0.5)' : 'rgba(229,231,235,0.8)'}`,
+                    borderRadius: 12,
                     fontSize: 12,
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
                   }}
                   formatter={(value: number, _name: string, props: { payload?: { model?: string; totalCost?: number; callCount?: number } }) => {
                     const p = props.payload;
@@ -228,25 +289,25 @@ function ModelDistributionCard({ data, loading, isDark }: {
           <div className="min-w-0 flex-1 overflow-y-auto" style={{ maxHeight: 256 }}>
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-gray-500 dark:text-dark-400">
-                  <th className="pb-1 text-left font-medium">模型</th>
-                  <th className="pb-1 text-right font-medium">调用</th>
-                  <th className="pb-1 text-right font-medium">Token</th>
-                  <th className="pb-1 text-right font-medium">费用</th>
+                <tr className="text-gray-400 dark:text-dark-500">
+                  <th className="pb-2 text-left font-medium">模型</th>
+                  <th className="pb-2 text-right font-medium">调用</th>
+                  <th className="pb-2 text-right font-medium">Token</th>
+                  <th className="pb-2 text-right font-medium">费用</th>
                 </tr>
               </thead>
               <tbody>
                 {top.map((m, i) => (
-                  <tr key={m.model} className="border-t border-gray-50 dark:border-dark-700/50">
-                    <td className="py-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        <span className="truncate text-gray-800 dark:text-dark-200">{m.model}</span>
+                  <tr key={m.model} className="border-t border-gray-100/60 dark:border-dark-700/40">
+                    <td className="py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full shadow-sm" style={{ background: colors[i % colors.length] }} />
+                        <span className="truncate text-gray-700 dark:text-dark-200">{m.model}</span>
                       </div>
                     </td>
-                    <td className="py-1.5 text-right tabular-nums text-gray-600 dark:text-dark-300">{formatNumber(m.callCount)}</td>
-                    <td className="py-1.5 text-right tabular-nums text-gray-600 dark:text-dark-300">{formatTokens(m.totalTokens)}</td>
-                    <td className="py-1.5 text-right tabular-nums font-medium text-rose-600 dark:text-rose-400">{formatCost(Number(m.totalCost))}</td>
+                    <td className="py-2 text-right tabular-nums text-gray-500 dark:text-dark-400">{formatNumber(m.callCount)}</td>
+                    <td className="py-2 text-right tabular-nums text-gray-500 dark:text-dark-400">{formatTokens(m.totalTokens)}</td>
+                    <td className="py-2 text-right tabular-nums font-medium text-rose-500 dark:text-rose-400">{formatCost(Number(m.totalCost))}</td>
                   </tr>
                 ))}
               </tbody>
@@ -286,13 +347,17 @@ function TokenTrendCard({ data, loading, isDark }: {
     return total;
   }, [data]);
 
-  const gridColor = isDark ? '#374151' : '#e5e7eb';
-  const textColor = isDark ? '#9ca3af' : '#6b7280';
+  const gridColor = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.6)';
+  const textColor = isDark ? '#9ca3af' : '#9ca3af';
+
+  const lineColors = isDark
+    ? { input: '#93c5fd', output: '#6ee7b7', cache: '#67e8f9' }
+    : { input: '#3b82f6', output: '#10b981', cache: '#06b6d4' };
 
   return (
-    <div className="card p-4">
+    <div className="relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
       <h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-white">Token 用量趋势</h3>
-      <p className="mb-3 text-xs text-gray-500 dark:text-dark-400">
+      <p className="mb-4 text-xs text-gray-400 dark:text-dark-500">
         {loading || data.length === 0
           ? '各时段 Token 消耗分布'
           : `共 ${formatTokens(totalTokens)} tokens`}
@@ -307,24 +372,43 @@ function TokenTrendCard({ data, loading, isDark }: {
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <defs>
+                <linearGradient id="gradInput" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lineColors.input} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={lineColors.input} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradOutput" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lineColors.output} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={lineColors.output} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="gradCache" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" stopColor={lineColors.cache} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={lineColors.cache} stopOpacity={0} />
+                </linearGradient>
+              </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
-              <XAxis dataKey="label" tick={{ fontSize: 10, fill: textColor }} />
-              <YAxis tick={{ fontSize: 10, fill: textColor }} tickFormatter={formatTokens} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: textColor }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: textColor }} tickFormatter={formatTokens} axisLine={false} tickLine={false} width={45} />
               <Tooltip
                 contentStyle={{
-                  background: isDark ? '#1e1e2e' : '#fff',
-                  border: `1px solid ${gridColor}`,
-                  borderRadius: 8,
+                  background: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                  backdropFilter: 'blur(8px)',
+                  border: `1px solid ${isDark ? 'rgba(55,65,81,0.5)' : 'rgba(229,231,235,0.8)'}`,
+                  borderRadius: 12,
                   fontSize: 12,
+                  boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
                 }}
                 formatter={(value: number, name: string) =>
                   [formatTokens(value), name === 'inputTokens' ? '输入' : name === 'outputTokens' ? '输出' : '缓存读']
                 }
               />
-              <Legend formatter={(value: string) => value === 'inputTokens' ? '输入' : value === 'outputTokens' ? '输出' : '缓存读'} />
-              <Line type="monotone" dataKey="inputTokens" stroke="#3b82f6" strokeWidth={2} dot={false} fill="#3b82f6" fillOpacity={0.1} />
-              <Line type="monotone" dataKey="outputTokens" stroke="#10b981" strokeWidth={2} dot={false} fill="#10b981" fillOpacity={0.1} />
-              <Line type="monotone" dataKey="cacheReadTokens" stroke="#06b6d4" strokeWidth={2} dot={false} fill="#06b6d4" fillOpacity={0.1} />
+              <Legend
+                formatter={(value: string) => value === 'inputTokens' ? '输入' : value === 'outputTokens' ? '输出' : '缓存读'}
+                wrapperStyle={{ fontSize: 11, paddingTop: 8 }}
+              />
+              <Line type="monotone" dataKey="inputTokens" stroke={lineColors.input} strokeWidth={2.5} dot={false} fill="url(#gradInput)" />
+              <Line type="monotone" dataKey="outputTokens" stroke={lineColors.output} strokeWidth={2.5} dot={false} fill="url(#gradOutput)" />
+              <Line type="monotone" dataKey="cacheReadTokens" stroke={lineColors.cache} strokeWidth={2.5} dot={false} fill="url(#gradCache)" />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -423,7 +507,7 @@ export default function DashboardPage() {
         />
         <DashboardStatCard
           icon="chartBar"
-          color="green"
+          color="blue"
           label="今日请求"
           value={loading ? '...' : formatNumber(overview?.todayRequests ?? 0)}
           subtext={loading ? undefined : `总计 ${formatNumber(overview?.totalRequests ?? 0)}`}
