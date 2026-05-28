@@ -13,31 +13,6 @@ import { useToastStore } from '../stores/toastStore';
 // ---------------------------------------------------------------------------
 // 常量
 // ---------------------------------------------------------------------------
-const PLATFORM_OPTIONS = [
-  { value: 'openai', label: 'OpenAI (Chat Completions)' },
-  { value: 'openai_responses', label: 'OpenAI (Responses API)' },
-  { value: 'anthropic', label: 'Anthropic Claude' },
-  { value: 'gemini', label: 'Google Gemini' },
-  { value: 'antigravity', label: 'Antigravity' },
-];
-
-const TABS = [
-  { key: 'all', label: '全部' },
-  { key: 'openai', label: 'OpenAI' },
-  { key: 'openai_responses', label: 'Responses' },
-  { key: 'anthropic', label: 'Anthropic' },
-  { key: 'gemini', label: 'Gemini' },
-  { key: 'antigravity', label: 'Antigravity' },
-];
-
-const platformBadge: Record<string, string> = {
-  openai: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  openai_responses: 'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
-  anthropic: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-  gemini: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-  antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
-};
-
 const BILLING_MODE_OPTIONS = [
   { value: 'token', label: 'Token 计费' },
   { value: 'per_request', label: '按次计费' },
@@ -73,13 +48,11 @@ export default function ModelPricesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ModelPrice | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [activePlatform, setActivePlatform] = useState('all');
   const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const addToast = useToastStore((s) => s.addToast);
 
   // ---- 表单状态 ----
   const [formModel, setFormModel] = useState('');
-  const [formPlatform, setFormPlatform] = useState('anthropic');
   const [formInputPrice, setFormInputPrice] = useState('0');
   const [formOutputPrice, setFormOutputPrice] = useState('0');
   const [formCacheWritePrice, setFormCacheWritePrice] = useState('0');
@@ -110,11 +83,10 @@ export default function ModelPricesPage() {
   // ---- 客户端过滤 ----
   const filteredPrices = useMemo(() => {
     return prices.filter((p) => {
-      if (activePlatform !== 'all' && p.platform !== activePlatform) return false;
       if (searchQuery && !p.model.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
-  }, [prices, activePlatform, searchQuery]);
+  }, [prices, searchQuery]);
 
   const toggleExpand = (id: number) => {
     setExpandedRows((prev) => {
@@ -136,7 +108,6 @@ export default function ModelPricesPage() {
   const openCreate = () => {
     setEditTarget(null);
     setFormModel('');
-    setFormPlatform('anthropic');
     setFormInputPrice('0');
     setFormOutputPrice('0');
     setFormCacheWritePrice('0');
@@ -156,7 +127,6 @@ export default function ModelPricesPage() {
   const openEdit = (p: ModelPrice) => {
     setEditTarget(p);
     setFormModel(p.model);
-    setFormPlatform(p.platform);
     setFormInputPrice(String(p.inputPrice ?? 0));
     setFormOutputPrice(String(p.outputPrice ?? 0));
     setFormCacheWritePrice(String(p.cacheWritePrice ?? 0));
@@ -183,7 +153,6 @@ export default function ModelPricesPage() {
     try {
       const payload = {
         model: formModel.trim(),
-        platform: formPlatform,
         inputPrice: Number(formInputPrice) || 0,
         outputPrice: Number(formOutputPrice) || 0,
         cacheWritePrice: Number(formCacheWritePrice) || 0,
@@ -262,24 +231,6 @@ export default function ModelPricesPage() {
         </Button>
       </div>
 
-      {/* ── platform tabs ── */}
-      <div className="mb-3 flex gap-1 border-b border-gray-200 dark:border-dark-700">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key}
-            type="button"
-            onClick={() => setActivePlatform(tab.key)}
-            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors -mb-px ${
-              activePlatform === tab.key
-                ? 'border-violet-500 text-violet-600 dark:text-violet-400'
-                : 'border-transparent text-gray-500 dark:text-dark-400 hover:text-gray-700 dark:hover:text-dark-300'
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
       {/* ── table ── */}
       <div className="card overflow-hidden">
         <div className="overflow-x-auto">
@@ -291,7 +242,7 @@ export default function ModelPricesPage() {
                   模型
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                  平台
+                  计费模式
                 </th>
                 <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   输入 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
@@ -374,26 +325,19 @@ export default function ModelPricesPage() {
                         )}
                       </td>
 
-                      {/* 平台 */}
+                      {/* 计费模式 */}
                       <td className="px-4 py-3.5">
-                        <div className="space-y-1">
+                        <div className="flex items-center gap-1">
                           <span
-                            className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-medium ${platformBadge[p.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                            className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${billingModeBadge[p.billingMode ?? 'token'] ?? billingModeBadge.token}`}
                           >
-                            {p.platform}
+                            {p.billingMode === 'image' ? `图片${p.imageSize ? ` ${p.imageSize}` : ''}` : p.billingMode === 'per_request' ? '按次' : 'Token'}
                           </span>
-                          <div className="flex items-center gap-1">
-                            <span
-                              className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${billingModeBadge[p.billingMode ?? 'token'] ?? billingModeBadge.token}`}
-                            >
-                              {p.billingMode === 'image' ? `图片${p.imageSize ? ` ${p.imageSize}` : ''}` : p.billingMode === 'per_request' ? '按次' : 'Token'}
+                          {p.wildcardMatch && (
+                            <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+                              通配
                             </span>
-                            {p.wildcardMatch && (
-                              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
-                                通配
-                              </span>
-                            )}
-                          </div>
+                          )}
                         </div>
                       </td>
 
@@ -449,15 +393,9 @@ export default function ModelPricesPage() {
             <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
               基本信息
             </legend>
-            <div className="mt-1 grid grid-cols-2 gap-3">
-              <div>
-                <label className="input-label">模型名称</label>
-                <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="如 gpt-4o, claude-sonnet-4" />
-              </div>
-              <div>
-                <label className="input-label">平台</label>
-                <Select options={PLATFORM_OPTIONS} value={formPlatform} onChange={setFormPlatform} />
-              </div>
+            <div className="mt-1">
+              <label className="input-label">模型名称</label>
+              <Input value={formModel} onChange={(e) => setFormModel(e.target.value)} placeholder="如 gpt-4o, claude-sonnet-4" />
             </div>
           </fieldset>
 

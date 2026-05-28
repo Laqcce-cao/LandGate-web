@@ -550,7 +550,7 @@ export default function UsersPage() {
         open={!!rechargeTarget}
         onClose={() => setRechargeTarget(null)}
         title="用户充值"
-        width="sm"
+        width="narrow"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setRechargeTarget(null)}>取消</Button>

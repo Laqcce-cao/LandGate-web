@@ -12,7 +12,7 @@ interface DatePickerProps {
 
 const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
 
-function parseDate(s: string): Date | null {
+function parseDate(s?: string): Date | null {
   if (!s) return null;
   const [y, m, d] = s.split('-').map(Number);
   return new Date(y, m - 1, d);
