@@ -20,7 +20,6 @@ import ModelPricesPage from '../pages/ModelPricesPage';
 import UsersPage from '../pages/admin/UsersPage';
 import ApiKeysAdminPage from '../pages/admin/ApiKeysAdminPage';
 import ProfilePage from '../pages/ProfilePage';
-import RedeemPage from '../pages/RedeemPage';
 
 function AuthGuard() {
   const token = useAuthStore((s) => s.token);
@@ -95,7 +94,6 @@ export default function AppRouter() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/api-keys" element={<ApiKeysPage />} />
             <Route path="/usage" element={<UsagePage />} />
-            <Route path="/redeem" element={<RedeemPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>

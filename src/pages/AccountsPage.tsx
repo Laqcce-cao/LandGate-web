@@ -190,6 +190,9 @@ export default function AccountsPage() {
   // ---- 凭证 & extra ----
   const [credValues, setCredValues] = useState<Record<string, string>>(buildEmptyCredValues('api_key'));
   const [extraBaseUrl, setExtraBaseUrl] = useState('');
+  const [extraResponsesSupported, setExtraResponsesSupported] = useState(false);
+  const [extraResponsesMode, setExtraResponsesMode] = useState('auto');
+  const [extraPassthrough, setExtraPassthrough] = useState(false);
 
   // ---- 协议 & 混合调度 ----
   const [accountProtocols, setAccountProtocols] = useState<Record<string, boolean>>({});
@@ -386,6 +389,9 @@ export default function AccountsPage() {
     setStatusForm('ACTIVE');
     setCredValues(buildEmptyCredValues('api_key'));
     setExtraBaseUrl('');
+    setExtraResponsesSupported(false);
+    setExtraResponsesMode('auto');
+    setExtraPassthrough(false);
     setConcurrency(3);
     setPriority(50);
     setAccountProtocols({});
@@ -407,8 +413,14 @@ export default function AccountsPage() {
       vals[f.key] = typeof v === 'string' ? v : (v ? JSON.stringify(v) : '');
     });
     setCredValues(vals);
-    const extra = parseJsonSafe(account.extra);
-    setExtraBaseUrl(typeof (extra as Record<string, unknown>).base_url === 'string' ? (extra as Record<string, unknown>).base_url as string : '');
+    const extra = parseJsonSafe(account.extra) as Record<string, unknown>;
+    setExtraBaseUrl(typeof extra.base_url === 'string' ? extra.base_url as string : '');
+    setExtraResponsesSupported(extra.openai_responses_supported === true);
+    // 非法值兜底：只接受后端约定的 3 个取值，老数据中残留的 "force" / "none" 等一律回落 auto
+    const rawMode = extra.openai_responses_mode;
+    const validModes = ['auto', 'force_responses', 'force_chat_completions'];
+    setExtraResponsesMode(typeof rawMode === 'string' && validModes.includes(rawMode) ? rawMode : 'auto');
+    setExtraPassthrough(extra.openai_passthrough === true);
     setConcurrency(account.concurrency ?? 3);
     setPriority(account.priority ?? 50);
     const protocols = parseProtocolsArray(account.supportedProtocols);
@@ -428,9 +440,16 @@ export default function AccountsPage() {
       Object.entries(credValues).forEach(([k, v]) => {
         if (v.trim()) creds[k] = v.trim();
       });
-      const originalExtra = editTarget ? parseJsonSafe(editTarget.extra) as Record<string, string> : {};
-      const extra: Record<string, string> = { ...originalExtra };
-      if (extraBaseUrl.trim()) extra.base_url = extraBaseUrl.trim();
+      const originalExtra = editTarget ? parseJsonSafe(editTarget.extra) as Record<string, unknown> : {};
+      const extra: Record<string, unknown> = { ...originalExtra };
+      if (extraBaseUrl.trim()) {
+        extra.base_url = extraBaseUrl.trim();
+      } else {
+        delete extra.base_url;
+      }
+      extra.openai_responses_supported = extraResponsesSupported;
+      extra.openai_responses_mode = extraResponsesMode;
+      extra.openai_passthrough = extraPassthrough;
       const payload = {
         name: name.trim(),
         platform,
@@ -997,6 +1016,35 @@ export default function AccountsPage() {
                 placeholder="https://custom-api.example.com（留空则使用默认地址）"
               />
               <p className="text-xs text-gray-400">覆盖默认的 API 上游地址。例如 Anthropic 的 https://api.anthropic.com，留空则走官方默认。</p>
+            </div>
+            <div className="mt-4 space-y-3">
+              <Toggle
+                checked={extraResponsesSupported}
+                onChange={setExtraResponsesSupported}
+                label="支持 OpenAI Responses API"
+              />
+              <p className="text-xs text-gray-400 -mt-2">上游是否支持 /v1/responses 端点。开启后网关可将请求转换为 Responses 格式发送。</p>
+
+              <div>
+                <label className="input-label">Responses API 模式</label>
+                <Select
+                  value={extraResponsesMode}
+                  onChange={setExtraResponsesMode}
+                  options={[
+                    { value: 'auto', label: 'auto — 自动检测' },
+                    { value: 'force_responses', label: 'force_responses — 强制走 /v1/responses' },
+                    { value: 'force_chat_completions', label: 'force_chat_completions — 强制走 /v1/chat/completions' },
+                  ]}
+                />
+              </div>
+              <p className="text-xs text-gray-400 -mt-1">控制 Responses API 的使用策略：auto 由网关结合自动探测结果判断；force_responses 始终使用 /v1/responses；force_chat_completions 强制降级为 /v1/chat/completions（适配不支持 Responses 的兼容上游）。</p>
+
+              <Toggle
+                checked={extraPassthrough}
+                onChange={setExtraPassthrough}
+                label="Passthrough 透传模式"
+              />
+              <p className="text-xs text-gray-400 -mt-2">开启后上游请求不做协议转换，直接透传原始请求体。</p>
             </div>
           </fieldset>
 

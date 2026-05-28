@@ -71,16 +71,28 @@ export default function DashboardPage() {
 
     setStatsLoading(true);
 
+    // Fetch daily stats for chart/aggregate, and all usage logs for total cost
+    const fetchAllLogs = async (): Promise<number> => {
+      let totalCost = 0;
+      let p = 0;
+      const size = 500;
+      while (true) {
+        const res = await usageApi.myUsage(p, size, dateToStr(start), dateToStr(end));
+        const batch = res.data.logs ?? [];
+        totalCost += batch.reduce((sum, l) => sum + (l.totalCost ?? 0), 0);
+        if (batch.length < size || p * size + batch.length >= (res.data.total ?? 0)) break;
+        p++;
+      }
+      return totalCost;
+    };
+
     Promise.all([
       usageApi.dailyStats(dateToStr(start), dateToStr(end)),
-      usageApi.myUsage(0, 500),
+      fetchAllLogs(),
     ])
-      .then(([statsRes, usageRes]) => {
+      .then(([statsRes, totalCost]) => {
         if (cancelled) return;
         setDailyStats(statsRes.data ?? []);
-
-        const logs = usageRes.data.logs ?? [];
-        const totalCost = logs.reduce((sum, l) => sum + (l.totalCost ?? 0), 0);
         setAllTimeCost(totalCost);
       })
       .catch(() => {

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { DataTable } from '../components/ui/DataTable';
 import { Icon } from '../components/ui/Icon';
+import { Button } from '../components/ui/Button';
 import { useToastStore } from '../stores/toastStore';
 
 const platformConfig: Record<string, { label: string; color: string }> = {
@@ -80,7 +81,7 @@ export default function UsagePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [statsLogs, setStatsLogs] = useState<UsageLog[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [preset, setPreset] = useState<TimePreset>('30d');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -117,13 +118,6 @@ export default function UsagePage() {
     }
   }, [page, dateRange, addToast]);
 
-  // Fetch larger batch for summary stats
-  useEffect(() => {
-    usageApi.myUsage(0, 200, dateRange.start, dateRange.end)
-      .then((res) => setStatsLogs(res.data.logs ?? []))
-      .catch(() => {});
-  }, [dateRange]);
-
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
@@ -133,13 +127,61 @@ export default function UsagePage() {
     setPage(0);
   }, [dateRange]);
 
-  const stats = useMemo(() => {
-    if (statsLogs.length === 0) return null;
-    const totalTokens = statsLogs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0), 0);
-    const totalCost = statsLogs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
-    const totalRequests = statsLogs.length;
-    return { totalTokens, totalCost, totalRequests };
-  }, [statsLogs]);
+  // CSV export - fetch all logs for the selected date range and download
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const allLogs: UsageLog[] = [];
+      let p = 0;
+      const size = 500;
+      while (true) {
+        const res = await usageApi.myUsage(p, size, dateRange.start, dateRange.end);
+        const batch = res.data.logs ?? [];
+        allLogs.push(...batch);
+        if (allLogs.length >= (res.data.total ?? 0) || batch.length < size) break;
+        p++;
+      }
+
+      if (allLogs.length === 0) {
+        addToast({ type: 'warning', message: '没有可导出的数据' });
+        return;
+      }
+
+      const header = ['时间', '模型', '平台', '分组', '输入Tokens', '输出Tokens', '缓存命中', '总Tokens', '用时(ms)', '首字(ms)', '花费(USD)', 'IP'];
+      const rows = allLogs.map((l) => [
+        l.createdAt ?? '',
+        l.model ?? '',
+        l.platform ?? '',
+        l.groupId ?? '',
+        l.inputTokens ?? 0,
+        l.outputTokens ?? 0,
+        l.cacheReadTokens ?? 0,
+        (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0),
+        l.durationMs ?? '',
+        l.firstTokenMs ?? '',
+        l.totalCost ?? 0,
+        l.ipAddress ?? '',
+      ]);
+
+      const csvContent = [header, ...rows]
+        .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `usage_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast({ type: 'success', message: `已导出 ${allLogs.length} 条记录` });
+    } catch {
+      addToast({ type: 'error', message: '导出失败' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handlePresetChange = (p: TimePreset) => {
     setPreset(p);
@@ -305,53 +347,15 @@ export default function UsagePage() {
             </div>
           )}
 
-          {/* Active range indicator */}
-          <span className="text-xs text-gray-400 dark:text-dark-500">
-            {preset !== 'custom'
-              ? PRESETS.find((p) => p.key === preset)?.label
-              : (startDate || endDate ? `${startDate || '最早'} ~ ${endDate || '现在'}` : '全部')}
-          </span>
+          {/* Export button */}
+          <div className="ml-auto">
+            <Button variant="secondary" size="sm" onClick={handleExportCsv} loading={exporting}>
+              <Icon name="download" size="xs" />
+              导出 CSV
+            </Button>
+          </div>
         </div>
       </div>
-
-      {/* Summary Cards */}
-      {stats && (
-        <div className="mb-4 grid grid-cols-3 gap-3">
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-              <Icon name="sparkles" size="sm" className="text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 dark:text-dark-400">总令牌</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
-                {formatTokens(stats.totalTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/30">
-              <Icon name="dollar" size="sm" className="text-rose-600 dark:text-rose-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 dark:text-dark-400">总花费</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
-                {formatCost(stats.totalCost)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Icon name="chartBar" size="sm" className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 dark:text-dark-400">请求次数</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
-                {stats.totalRequests.toLocaleString()}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div className="card">
         <DataTable

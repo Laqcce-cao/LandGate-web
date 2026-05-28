@@ -8,7 +8,6 @@ const userNavItems = [
   { path: '/dashboard', label: '仪表盘', icon: 'grid' as const },
   { path: '/api-keys', label: 'API Keys', icon: 'key' as const },
   { path: '/usage', label: '用量统计', icon: 'chartBar' as const },
-  { path: '/redeem', label: '兑换码', icon: 'gift' as const },
   { path: '/profile', label: '个人中心', icon: 'user' as const },
 ];
 
