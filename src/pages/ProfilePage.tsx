@@ -6,7 +6,12 @@ import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
 
 function SectionHeader({ title }: { title: string }) {
-  return <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">{title}</h3>;
+  return (
+    <div className="mb-4">
+      <h3 className="text-sm font-semibold text-gray-800 dark:text-dark-200">{title}</h3>
+      <div className="mt-1 h-px bg-gradient-to-r from-violet-200 to-transparent dark:from-violet-800/40" />
+    </div>
+  );
 }
 
 export default function ProfilePage() {
@@ -88,19 +93,19 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-xl">
       {/* User Info Bar */}
-      <div className="card mb-4 flex items-center gap-4 p-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-emerald-500 text-lg font-bold text-white shadow-md shadow-violet-500/20">
+      <div className="mb-4 flex items-center gap-4 overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-lg font-bold text-white shadow-lg shadow-violet-500/20">
           {initial}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+          <p className="truncate text-base font-semibold text-gray-900 dark:text-white">
             {user.username ?? '用户'}
           </p>
-          <p className="truncate text-xs text-gray-400 dark:text-dark-400">{user.email}</p>
+          <p className="truncate text-xs text-gray-400 dark:text-dark-500">{user.email}</p>
         </div>
         <button
           onClick={logout}
-          className="flex shrink-0 items-center gap-1.5 rounded-lg border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-900/20"
+          className="flex shrink-0 items-center gap-1.5 rounded-xl border border-red-200/80 px-3.5 py-2 text-xs font-medium text-red-500 transition-all hover:border-red-300 hover:bg-red-50 dark:border-red-800/50 dark:text-red-400 dark:hover:bg-red-900/10"
         >
           <Icon name="login" size="xs" />
           退出
@@ -108,7 +113,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Change Nickname */}
-      <div className="card mb-4 p-5">
+      <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
         <SectionHeader title="修改昵称" />
         <form onSubmit={handleNicknameSubmit} className="flex gap-3">
           <input
@@ -126,7 +131,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Change Password */}
-      <div className="card p-5">
+      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
         <SectionHeader title="修改密码" />
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>

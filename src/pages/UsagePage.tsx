@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import clsx from 'clsx';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { DataTable } from '../components/ui/DataTable';
+import { DatePicker } from '../components/ui/DatePicker';
 import { Icon } from '../components/ui/Icon';
 import { Button } from '../components/ui/Button';
 import { useToastStore } from '../stores/toastStore';
@@ -309,66 +311,58 @@ export default function UsagePage() {
   return (
     <div>
       {/* Time range filter bar */}
-      <div className="card mb-4 p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Preset buttons */}
-          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-800">
-            {PRESETS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => handlePresetChange(p.key)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  preset === p.key
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
-          </div>
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
+        {/* Preset buttons */}
+        <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => handlePresetChange(p.key)}
+              className={clsx(
+                'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
+                preset === p.key
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
 
-          {/* Custom date inputs */}
-          {preset === 'custom' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="input w-auto text-xs"
-              />
-              <span className="text-xs text-gray-400">至</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="input w-auto text-xs"
-              />
-            </div>
-          )}
+        {/* Divider */}
+        {preset === 'custom' && <div className="h-5 w-px bg-gray-200 dark:bg-dark-600" />}
 
-          {/* Export button */}
-          <div className="ml-auto">
-            <Button variant="secondary" size="sm" onClick={handleExportCsv} loading={exporting}>
-              <Icon name="download" size="xs" />
-              导出 CSV
-            </Button>
+        {/* Custom date picker */}
+        {preset === 'custom' && (
+          <div className="flex items-center gap-2">
+            <DatePicker value={startDate} onChange={setStartDate} max={endDate || undefined} />
+            <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
+            <DatePicker value={endDate} onChange={setEndDate} min={startDate || undefined} />
           </div>
+        )}
+
+        {/* Export button */}
+        <div className="ml-auto">
+          <Button variant="secondary" size="sm" onClick={handleExportCsv} loading={exporting}>
+            <Icon name="download" size="xs" />
+            导出 CSV
+          </Button>
         </div>
       </div>
 
-      <div className="card">
+      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
         <DataTable
           columns={columns}
           data={logs}
           loading={loading}
           emptyState={
             <div className="flex flex-col items-center gap-3 py-16">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
-                <Icon name="chart" size="xl" className="text-gray-300 dark:text-dark-600" />
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
+                <Icon name="chart" size="lg" className="text-violet-400 dark:text-violet-500" />
               </div>
               <div className="text-center">
-                <p className="text-sm font-medium text-gray-500 dark:text-dark-400">暂无使用记录</p>
+                <p className="text-sm font-medium text-gray-600 dark:text-dark-300">暂无使用记录</p>
                 <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
                   发起 API 调用后将在此处显示用量明细
                 </p>
@@ -377,7 +371,7 @@ export default function UsagePage() {
           }
         />
 
-        <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-dark-700">
+        <div className="flex items-center justify-between border-t border-gray-100/60 px-6 py-4 dark:border-dark-700/40">
           <span className="text-sm text-gray-500 dark:text-dark-400">
             共 {total.toLocaleString()} 条记录，第 {page + 1}/{totalPages || 1} 页
           </span>

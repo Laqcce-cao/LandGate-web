@@ -56,13 +56,13 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
       >
         {/* Brand */}
         <div className={clsx('sidebar-header', collapsed && 'justify-center px-0')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-emerald-500 shadow-lg shadow-violet-500/25">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-md shadow-violet-500/20">
             <span className="text-sm font-bold text-white">LG</span>
           </div>
           {!collapsed && (
             <div>
-              <span className="text-lg font-bold text-gray-900 dark:text-white">LandGate</span>
-              <p className="text-xs text-slate-400">{isAdmin ? '管理后台' : '用户中心'}</p>
+              <span className="text-base font-bold tracking-tight text-gray-900 dark:text-white">LandGate</span>
+              <p className="text-[11px] text-gray-400 dark:text-dark-500">{isAdmin ? '管理后台' : '用户中心'}</p>
             </div>
           )}
         </div>
@@ -146,13 +146,13 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
 
         {/* Bottom: balance + actions */}
         <div className={clsx(
-          'border-t border-gray-100 px-3 py-3 dark:border-dark-800',
+          'border-t border-gray-100/60 px-3 py-3 dark:border-dark-800/40',
           collapsed && 'px-1.5'
         )}>
           {user?.balance != null && !collapsed && (
-            <div className="mb-2 px-2 py-1.5 rounded-lg bg-violet-50 dark:bg-violet-900/20 text-center">
-              <span className="text-xs text-violet-600 dark:text-violet-400">余额</span>
-              <p className="text-sm font-semibold text-violet-700 dark:text-violet-300">
+            <div className="mb-2 overflow-hidden rounded-xl bg-gradient-to-br from-violet-50 to-indigo-50 p-3 text-center dark:from-violet-900/20 dark:to-indigo-900/20">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-violet-500 dark:text-violet-400">余额</span>
+              <p className="text-lg font-bold tracking-tight text-violet-700 dark:text-violet-300">
                 ${(Math.floor(Number(user.balance) * 100) / 100).toFixed(2)}
               </p>
             </div>

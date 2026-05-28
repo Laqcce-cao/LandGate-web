@@ -786,7 +786,7 @@ export default function ApiKeysPage() {
           <LoadingSpinner size="lg" />
         </div>
       ) : keys.length === 0 ? (
-        <div className="card flex flex-col items-center gap-4 py-20">
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-gray-100/80 bg-white py-20 dark:border-dark-700/50 dark:bg-dark-800">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
             <Icon name="key" size="xl" className="text-violet-400 dark:text-violet-500" />
           </div>
@@ -802,10 +802,11 @@ export default function ApiKeysPage() {
           </Button>
         </div>
       ) : (
-        <div className="card overflow-x-auto">
+        <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
+          <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px]">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-dark-400">
+              <tr className="border-b border-gray-100/60 bg-gray-50/50 text-xs font-medium uppercase tracking-wide text-gray-400 dark:border-dark-700/40 dark:bg-dark-800/30 dark:text-dark-500">
                 <th className="px-4 py-2.5 text-left">名称</th>
                 <th className="px-3 py-2.5 text-left">API 密钥</th>
                 <th className="px-3 py-2.5 text-left">分组</th>
@@ -822,6 +823,7 @@ export default function ApiKeysPage() {
               {keys.map(renderKeyRow)}
             </tbody>
           </table>
+          </div>
         </div>
       )}
 
