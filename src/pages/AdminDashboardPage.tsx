@@ -1,12 +1,354 @@
 import { useEffect, useState, useMemo } from 'react';
 import clsx from 'clsx';
-import { dashboardApi, type DashboardStats, type RevenueSummary, type UserUsageSummary } from '../api/admin/dashboard';
-import { paymentsApi, type PaymentOrder } from '../api/admin/payments';
-import { StatCard } from '../components/ui/StatCard';
-import { StatusBadge } from '../components/ui/StatusBadge';
-import { Icon } from '../components/ui/Icon';
+import {
+  PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer,
+  LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
+} from 'recharts';
+import {
+  dashboardApi,
+  type DashboardOverview,
+  type ModelStats,
+  type PlatformDailyStats,
+  type UserDailyStats,
+  type UserUsageSummary,
+} from '../api/admin/dashboard';
+import { Icon, type IconName } from '../components/ui/Icon';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useToastStore } from '../stores/toastStore';
+import { useThemeStore } from '../stores/themeStore';
+
+// ─── Helpers ────────────────────────────────────────────────
+
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(2)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+function formatCost(n: number): string {
+  if (n >= 1000) return `$${(n / 1000).toFixed(1)}K`;
+  if (n >= 1) return `$${n.toFixed(2)}`;
+  if (n >= 0.001) return `$${n.toFixed(4)}`;
+  return `$${n.toFixed(6)}`;
+}
+
+function formatDuration(ms: number): string {
+  if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
+  return `${Math.round(ms)}ms`;
+}
+
+// ─── Stat Card (sub2api style) ─────────────────────────────
+
+const COLOR_MAP: Record<string, { bg: string; text: string }> = {
+  blue:    { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
+  purple:  { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
+  green:   { bg: 'bg-green-100 dark:bg-green-900/30', text: 'text-green-600 dark:text-green-400' },
+  emerald: { bg: 'bg-emerald-100 dark:bg-emerald-900/30', text: 'text-emerald-600 dark:text-emerald-400' },
+  amber:   { bg: 'bg-amber-100 dark:bg-amber-900/30', text: 'text-amber-600 dark:text-amber-400' },
+  indigo:  { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-600 dark:text-indigo-400' },
+  violet:  { bg: 'bg-violet-100 dark:bg-violet-900/30', text: 'text-violet-600 dark:text-violet-400' },
+  rose:    { bg: 'bg-rose-100 dark:bg-rose-900/30', text: 'text-rose-600 dark:text-rose-400' },
+};
+
+function DashboardStatCard({ icon, color, label, value, subtext }: {
+  icon: IconName;
+  color: keyof typeof COLOR_MAP;
+  label: string;
+  value: string | number;
+  subtext?: string;
+}) {
+  const c = COLOR_MAP[color];
+  return (
+    <div className="card p-4">
+      <div className="flex items-center gap-3">
+        <div className={clsx('rounded-lg p-2', c.bg)}>
+          <Icon name={icon} size="md" className={c.text} />
+        </div>
+        <div>
+          <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{label}</p>
+          <p className="text-xl font-bold text-gray-900 dark:text-white">{value}</p>
+          {subtext && (
+            <p className="text-xs text-green-600 dark:text-green-400">{subtext}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Chart Colors ───────────────────────────────────────────
+
+const CHART_COLORS = [
+  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
+  '#ec4899', '#f43f5e', '#f97316', '#eab308',
+  '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+];
+
+const USER_COLORS = [
+  '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
+  '#8b5cf6', '#ec4899', '#14b8a6', '#f97316',
+  '#6366f1', '#84cc16', '#06b6d4', '#a855f7',
+];
+
+// ─── Model Distribution Chart ───────────────────────────────
+
+function ModelDistributionCard({ data, loading, isDark }: {
+  data: ModelStats[];
+  loading: boolean;
+  isDark: boolean;
+}) {
+  const sorted = useMemo(() => [...data].sort((a, b) => b.totalTokens - a.totalTokens), [data]);
+  const top = useMemo(() => {
+    const t = sorted.slice(0, 10);
+    const otherTokens = sorted.slice(10).reduce((s, m) => s + m.totalTokens, 0);
+    const otherCost = sorted.slice(10).reduce((s, m) => s + Number(m.totalCost), 0);
+    const otherCalls = sorted.slice(10).reduce((s, m) => s + m.callCount, 0);
+    if (otherTokens > 0) {
+      t.push({ model: 'Others', totalTokens: otherTokens, totalCost: otherCost, callCount: otherCalls });
+    }
+    return t;
+  }, [sorted]);
+
+  return (
+    <div className="card p-4">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">模型分布</h3>
+      {loading ? (
+        <div className="flex h-48 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        </div>
+      ) : top.length === 0 ? (
+        <div className="flex h-48 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
+      ) : (
+        <div className="flex items-start gap-4">
+          <div className="h-48 w-48 shrink-0">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={top}
+                  dataKey="totalTokens"
+                  nameKey="model"
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={40}
+                  outerRadius={70}
+                  paddingAngle={1}
+                >
+                  {top.map((_, i) => (
+                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                  ))}
+                </Pie>
+                <ReTooltip
+                  contentStyle={{
+                    background: isDark ? '#1e1e2e' : '#fff',
+                    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
+                    borderRadius: 8,
+                    fontSize: 12,
+                  }}
+                  formatter={(value: number, _name: string, props: { payload?: { model?: string; totalCost?: number; callCount?: number } }) => {
+                    const p = props.payload;
+                    return [
+                      `${formatTokens(value)} tokens · ${formatCost(Number(p?.totalCost ?? 0))} · ${p?.callCount ?? 0} calls`,
+                      p?.model ?? '',
+                    ];
+                  }}
+                />
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="min-w-0 flex-1 overflow-y-auto" style={{ maxHeight: 192 }}>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-gray-500 dark:text-dark-400">
+                  <th className="pb-1 text-left font-medium">模型</th>
+                  <th className="pb-1 text-right font-medium">调用</th>
+                  <th className="pb-1 text-right font-medium">Token</th>
+                  <th className="pb-1 text-right font-medium">费用</th>
+                </tr>
+              </thead>
+              <tbody>
+                {top.map((m, i) => (
+                  <tr key={m.model} className="border-t border-gray-50 dark:border-dark-700/50">
+                    <td className="py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+                        <span className="truncate text-gray-800 dark:text-dark-200">{m.model}</span>
+                      </div>
+                    </td>
+                    <td className="py-1.5 text-right tabular-nums text-gray-600 dark:text-dark-300">{formatNumber(m.callCount)}</td>
+                    <td className="py-1.5 text-right tabular-nums text-gray-600 dark:text-dark-300">{formatTokens(m.totalTokens)}</td>
+                    <td className="py-1.5 text-right tabular-nums font-medium text-rose-600 dark:text-rose-400">{formatCost(Number(m.totalCost))}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Token Usage Trend Chart ────────────────────────────────
+
+function TokenTrendCard({ data, loading, isDark }: {
+  data: PlatformDailyStats[];
+  loading: boolean;
+  isDark: boolean;
+}) {
+  const chartData = useMemo(() =>
+    data.map((s) => {
+      const totalCache = (s.cacheReadTokens ?? 0) + (s.cacheCreationTokens ?? 0);
+      const cacheHitRate = totalCache > 0 ? ((s.cacheReadTokens ?? 0) / totalCache) * 100 : 0;
+      const d = new Date(s.date);
+      return {
+        label: `${d.getMonth() + 1}/${d.getDate()}`,
+        inputTokens: s.inputTokens ?? 0,
+        outputTokens: s.outputTokens ?? 0,
+        cacheReadTokens: s.cacheReadTokens ?? 0,
+        cacheHitRate: Math.round(cacheHitRate * 10) / 10,
+      };
+    }),
+    [data],
+  );
+
+  const gridColor = isDark ? '#374151' : '#e5e7eb';
+  const textColor = isDark ? '#9ca3af' : '#6b7280';
+
+  return (
+    <div className="card p-4">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">Token 用量趋势</h3>
+      {loading ? (
+        <div className="flex h-48 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="flex h-48 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
+      ) : (
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: textColor }} />
+              <YAxis yAxisId="left" tick={{ fontSize: 10, fill: textColor }} tickFormatter={formatTokens} />
+              <YAxis yAxisId="right" orientation="right" domain={[0, 100]} tick={{ fontSize: 10, fill: textColor }} tickFormatter={(v: number) => `${v}%`} />
+              <Tooltip
+                contentStyle={{
+                  background: isDark ? '#1e1e2e' : '#fff',
+                  border: `1px solid ${gridColor}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(value: number, name: string) => {
+                  if (name === 'cacheHitRate') return [`${value}%`, '缓存命中率'];
+                  return [formatTokens(value), name === 'inputTokens' ? '输入' : name === 'outputTokens' ? '输出' : '缓存读'];
+                }}
+              />
+              <Legend formatter={(value: string) => value === 'inputTokens' ? '输入' : value === 'outputTokens' ? '输出' : value === 'cacheReadTokens' ? '缓存读' : '命中率'} />
+              <Line yAxisId="left" type="monotone" dataKey="inputTokens" stroke="#3b82f6" strokeWidth={2} dot={false} fill="#3b82f6" fillOpacity={0.1} />
+              <Line yAxisId="left" type="monotone" dataKey="outputTokens" stroke="#10b981" strokeWidth={2} dot={false} fill="#10b981" fillOpacity={0.1} />
+              <Line yAxisId="left" type="monotone" dataKey="cacheReadTokens" stroke="#06b6d4" strokeWidth={2} dot={false} fill="#06b6d4" fillOpacity={0.1} />
+              <Line yAxisId="right" type="monotone" dataKey="cacheHitRate" stroke="#8b5cf6" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── User Usage Trend Chart ─────────────────────────────────
+
+function UserTrendCard({ data, loading, isDark }: {
+  data: UserDailyStats[];
+  loading: boolean;
+  isDark: boolean;
+}) {
+  const { chartData, userIds } = useMemo(() => {
+    const dateMap = new Map<string, Record<string, number | string>>();
+    const ids = new Set<number>();
+
+    for (const d of data) {
+      ids.add(d.userId);
+      if (!dateMap.has(d.date)) dateMap.set(d.date, { date: d.date });
+      dateMap.get(d.date)![`user_${d.userId}`] = d.totalTokens;
+    }
+
+    const sorted = Array.from(dateMap.values()).sort((a, b) =>
+      String(a.date).localeCompare(String(b.date))
+    );
+
+    const idArr = Array.from(ids);
+    for (const row of sorted) {
+      for (const id of idArr) {
+        if (row[`user_${id}`] === undefined) row[`user_${id}`] = 0;
+      }
+    }
+
+    return {
+      chartData: sorted.map((r) => {
+        const d = new Date(r.date as string);
+        return { ...r, label: `${d.getMonth() + 1}/${d.getDate()}` };
+      }),
+      userIds: idArr,
+    };
+  }, [data]);
+
+  const gridColor = isDark ? '#374151' : '#e5e7eb';
+  const textColor = isDark ? '#9ca3af' : '#6b7280';
+
+  return (
+    <div className="card p-4">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">
+        用户用量趋势 · Top {userIds.length}
+      </h3>
+      {loading ? (
+        <div className="flex h-64 items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+        </div>
+      ) : chartData.length === 0 ? (
+        <div className="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
+      ) : (
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData} margin={{ top: 5, right: 10, bottom: 0, left: 0 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke={gridColor} />
+              <XAxis dataKey="label" tick={{ fontSize: 10, fill: textColor }} />
+              <YAxis tick={{ fontSize: 10, fill: textColor }} tickFormatter={formatTokens} />
+              <Tooltip
+                contentStyle={{
+                  background: isDark ? '#1e1e2e' : '#fff',
+                  border: `1px solid ${gridColor}`,
+                  borderRadius: 8,
+                  fontSize: 12,
+                }}
+                formatter={(value: number, name: string) => [formatTokens(value), `User #${name.replace('user_', '')}`]}
+              />
+              {userIds.map((id, i) => (
+                <Line
+                  key={id}
+                  type="monotone"
+                  dataKey={`user_${id}`}
+                  stroke={USER_COLORS[i % USER_COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Leaderboard ────────────────────────────────────────────
 
 type SortBy = 'totalCost' | 'totalTokens';
 
@@ -25,9 +367,7 @@ function UserAvatar({ name, id, size }: { name: string; id: number; size?: 'sm' 
   const initial = (name || '?').charAt(0).toUpperCase();
   const sizeClass = size === 'md' ? 'h-9 w-9 text-sm' : 'h-7 w-7 text-xs';
   return (
-    <div
-      className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${AVATAR_COLORS[id % AVATAR_COLORS.length]} font-semibold text-white shadow-sm`}
-    >
+    <div className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${AVATAR_COLORS[id % AVATAR_COLORS.length]} font-semibold text-white shadow-sm`}>
       {initial}
     </div>
   );
@@ -44,7 +384,7 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-interface LeaderboardProps {
+function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatter, emptyText }: {
   title: string;
   data: UserUsageSummary[];
   loading: boolean;
@@ -52,9 +392,7 @@ interface LeaderboardProps {
   onSortChange: (sortBy: SortBy) => void;
   valueFormatter: (item: UserUsageSummary) => string;
   emptyText: string;
-}
-
-function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatter, emptyText }: LeaderboardProps) {
+}) {
   const tabs: { key: SortBy; label: string }[] = [
     { key: 'totalCost', label: '消费金额' },
     { key: 'totalTokens', label: '使用 Token' },
@@ -63,7 +401,6 @@ function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatte
   return (
     <div className="card p-5">
       <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-
       <div className="mb-4 flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
         {tabs.map((tab) => (
           <button
@@ -80,25 +417,19 @@ function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatte
           </button>
         ))}
       </div>
-
       {loading ? (
         <div className="space-y-3">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} className="flex items-center gap-3">
               <Skeleton className="h-6 w-6 rounded-full" />
               <Skeleton className="h-7 w-7 rounded-xl" />
-              <div className="flex-1 space-y-1">
-                <Skeleton className="h-4 w-24" />
-                <Skeleton className="h-3 w-32" />
-              </div>
+              <div className="flex-1 space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-32" /></div>
               <Skeleton className="h-4 w-16" />
             </div>
           ))}
         </div>
       ) : data.length === 0 ? (
-        <div className="py-8 text-center text-sm text-gray-400 dark:text-dark-500">
-          {emptyText}
-        </div>
+        <div className="py-8 text-center text-sm text-gray-400 dark:text-dark-500">{emptyText}</div>
       ) : (
         <div className="space-y-1">
           {data.map((item, idx) => {
@@ -111,21 +442,15 @@ function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatte
                   idx < 3 && 'bg-amber-50/40 dark:bg-amber-900/10'
                 )}
               >
-                <div className="flex w-6 items-center justify-center">
-                  <RankBadge rank={idx} />
-                </div>
+                <div className="flex w-6 items-center justify-center"><RankBadge rank={idx} /></div>
                 <UserAvatar name={displayName} id={item.userId} size="sm" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                    {displayName}
-                  </p>
-                  <p className="text-xs text-gray-400 dark:text-dark-500 truncate">{item.email}</p>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{displayName}</p>
+                  <p className="truncate text-xs text-gray-400 dark:text-dark-500">{item.email}</p>
                 </div>
                 <span className={clsx(
-                  'text-sm font-semibold tabular-nums shrink-0',
-                  sortBy === 'totalCost'
-                    ? 'text-emerald-600 dark:text-emerald-400'
-                    : 'text-violet-600 dark:text-violet-400'
+                  'shrink-0 text-sm font-semibold tabular-nums',
+                  sortBy === 'totalCost' ? 'text-emerald-600 dark:text-emerald-400' : 'text-violet-600 dark:text-violet-400'
                 )}>
                   {valueFormatter(item)}
                 </span>
@@ -138,47 +463,53 @@ function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatte
   );
 }
 
+// ─── Main Page ──────────────────────────────────────────────
+
 export default function AdminDashboardPage() {
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [revenue, setRevenue] = useState<RevenueSummary | null>(null);
-  const [recentOrders, setRecentOrders] = useState<PaymentOrder[]>([]);
+  const [overview, setOverview] = useState<DashboardOverview | null>(null);
+  const [modelData, setModelData] = useState<ModelStats[]>([]);
+  const [tokenTrend, setTokenTrend] = useState<PlatformDailyStats[]>([]);
+  const [userTrend, setUserTrend] = useState<UserDailyStats[]>([]);
   const [loading, setLoading] = useState(true);
+  const [chartsLoading, setChartsLoading] = useState(true);
   const addToast = useToastStore((s) => s.addToast);
+  const { theme } = useThemeStore();
+  const isDark = theme === 'dark';
 
   const [todayData, setTodayData] = useState<UserUsageSummary[]>([]);
   const [todayLoading, setTodayLoading] = useState(false);
   const [todaySortBy, setTodaySortBy] = useState<SortBy>('totalCost');
-
   const [monthData, setMonthData] = useState<UserUsageSummary[]>([]);
   const [monthLoading, setMonthLoading] = useState(false);
   const [monthSortBy, setMonthSortBy] = useState<SortBy>('totalCost');
 
   useEffect(() => {
     Promise.all([
-      dashboardApi.stats(),
-      dashboardApi.revenue(),
-      paymentsApi.list({ size: 5 }),
+      dashboardApi.overview(),
+      dashboardApi.modelDistribution({ days: 7 }),
+      dashboardApi.tokenTrend({ days: 30 }),
+      dashboardApi.userTrend({ days: 30, topN: 12 }),
       dashboardApi.userUsage({ period: 'today', sortBy: 'totalCost' }),
       dashboardApi.userUsage({ period: 'month', sortBy: 'totalCost' }),
     ])
-      .then(([statsRes, revRes, ordersRes, todayRes, monthRes]) => {
-        setStats(statsRes.data);
-        setRevenue(revRes.data);
-        setRecentOrders(ordersRes.data.orders ?? []);
+      .then(([overviewRes, modelRes, trendRes, userTrendRes, todayRes, monthRes]) => {
+        setOverview(overviewRes.data);
+        setModelData(modelRes.data);
+        setTokenTrend(trendRes.data);
+        setUserTrend(userTrendRes.data);
         setTodayData(todayRes.data);
         setMonthData(monthRes.data);
       })
       .catch(() => {
         addToast({ type: 'error', message: '加载仪表盘数据失败' });
       })
-      .finally(() => setLoading(false));
+      .finally(() => { setLoading(false); setChartsLoading(false); });
   }, [addToast]);
 
   const fetchTodayUsage = (sortBy: SortBy) => {
     setTodaySortBy(sortBy);
     setTodayLoading(true);
-    dashboardApi
-      .userUsage({ period: 'today', sortBy })
+    dashboardApi.userUsage({ period: 'today', sortBy })
       .then((res) => setTodayData(res.data))
       .catch(() => addToast({ type: 'error', message: '加载今日排行失败' }))
       .finally(() => setTodayLoading(false));
@@ -187,49 +518,36 @@ export default function AdminDashboardPage() {
   const fetchMonthUsage = (sortBy: SortBy) => {
     setMonthSortBy(sortBy);
     setMonthLoading(true);
-    dashboardApi
-      .userUsage({ period: 'month', sortBy })
+    dashboardApi.userUsage({ period: 'month', sortBy })
       .then((res) => setMonthData(res.data))
       .catch(() => addToast({ type: 'error', message: '加载本月排行失败' }))
       .finally(() => setMonthLoading(false));
   };
 
-  const formatCost = (item: UserUsageSummary) => `$${Number(item.totalCost).toFixed(4)}`;
+  const formatCostItem = (item: UserUsageSummary) => `$${Number(item.totalCost).toFixed(4)}`;
+  const formatTokensItem = (item: UserUsageSummary) => formatTokens(item.totalTokens);
 
-  const formatTokens = (item: UserUsageSummary) => {
-    const t = item.totalTokens;
-    if (t >= 1_000_000) return `${(t / 1_000_000).toFixed(2)}M`;
-    if (t >= 1_000) return `${(t / 1_000).toFixed(1)}K`;
-    return String(t);
-  };
+  const todaySummary = useMemo(() => ({
+    totalCost: todayData.reduce((s, u) => s + Number(u.totalCost), 0),
+  }), [todayData]);
 
-  const todaySummary = useMemo(() => {
-    const totalCost = todayData.reduce((s, u) => s + Number(u.totalCost), 0);
-    const totalTokens = todayData.reduce((s, u) => s + u.totalTokens, 0);
-    return { totalCost, totalTokens };
-  }, [todayData]);
+  const monthSummary = useMemo(() => ({
+    totalCost: monthData.reduce((s, u) => s + Number(u.totalCost), 0),
+  }), [monthData]);
 
-  const monthSummary = useMemo(() => {
-    const totalCost = monthData.reduce((s, u) => s + Number(u.totalCost), 0);
-    const totalTokens = monthData.reduce((s, u) => s + u.totalTokens, 0);
-    return { totalCost, totalTokens };
-  }, [monthData]);
+  const o = overview;
 
   if (loading) {
     return (
-      <div>
-        <div className="mb-6">
-          <Skeleton className="mb-2 h-8 w-48" />
-          <Skeleton className="h-4 w-64" />
-        </div>
-        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="card p-5">
-              <div className="flex items-start gap-4">
-                <Skeleton className="h-12 w-12 rounded-xl" />
-                <div className="flex-1">
-                  <Skeleton className="mb-2 h-6 w-20" />
-                  <Skeleton className="h-3 w-16" />
+      <div className="space-y-6">
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="card p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-10 w-10 rounded-lg" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3 w-20" />
+                  <Skeleton className="h-5 w-16" />
                 </div>
               </div>
             </div>
@@ -240,75 +558,33 @@ export default function AdminDashboardPage() {
   }
 
   return (
-    <div>
-      {/* Stat cards */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard
-          title="总用户数"
-          value={(stats?.total_users ?? 0).toLocaleString()}
-          icon={<Icon name="users" size="lg" />}
-          iconVariant="primary"
-        />
-        <StatCard
-          title="活跃用户"
-          value={(stats?.active_users ?? 0).toLocaleString()}
-          icon={<Icon name="user" size="lg" />}
-          iconVariant="success"
-        />
-        <StatCard
-          title="总订单"
-          value={(stats?.total_orders ?? 0).toLocaleString()}
-          icon={<Icon name="creditCard" size="lg" />}
-          iconVariant="warning"
-        />
-        <StatCard
-          title="已完成订单"
-          value={(stats?.completed_orders ?? 0).toLocaleString()}
-          icon={<Icon name="checkCircle" size="lg" />}
-          iconVariant="danger"
-        />
+    <div className="space-y-6">
+      {/* Row 1: Core Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <DashboardStatCard icon="key" color="blue" label="API Keys" value={o?.totalApiKeys ?? 0} subtext={`${o?.activeApiKeys ?? 0} 活跃`} />
+        <DashboardStatCard icon="server" color="purple" label="上游账号" value={o?.totalAccounts ?? 0} subtext={`${o?.normalAccounts ?? 0} 正常 / ${o?.errorAccounts ?? 0} 异常`} />
+        <DashboardStatCard icon="chart" color="green" label="今日请求" value={formatNumber(o?.todayRequests ?? 0)} subtext={`${formatNumber(o?.totalRequests ?? 0)} 总计`} />
+        <DashboardStatCard icon="user" color="emerald" label="今日新增用户" value={`+${o?.newUsersToday ?? 0}`} subtext={`${formatNumber(o?.totalUsers ?? 0)} 总计`} />
       </div>
 
-      {/* Revenue + Recent orders */}
-      <div className="mb-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <div className="card p-5">
-          <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">收入概览</h3>
-          <p className="text-3xl font-bold text-gray-900 dark:text-white">
-            ${Number(revenue?.total_revenue ?? 0).toFixed(2)}
-          </p>
-          <p className="mt-1 text-sm text-gray-500 dark:text-dark-400">
-            {revenue?.completed_orders_count ?? 0} 笔已完成订单
-          </p>
-        </div>
-
-        <div className="card p-5">
-          <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">最近订单</h3>
-          {recentOrders.length === 0 ? (
-            <p className="text-sm text-gray-500 dark:text-dark-400">暂无订单</p>
-          ) : (
-            <div className="space-y-2">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between rounded-lg border border-gray-100 px-4 py-2.5 dark:border-dark-700"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-gray-900 dark:text-white">
-                      #{order.id}
-                    </p>
-                    <p className="text-xs text-gray-500 dark:text-dark-400">
-                      ${Number(order.amount ?? 0).toFixed(2)}
-                    </p>
-                  </div>
-                  <StatusBadge status={order.status} />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      {/* Row 2: Token Stats */}
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <DashboardStatCard icon="sparkles" color="amber" label="今日 Token" value={formatTokens(o?.todayTokens ?? 0)} subtext={formatCost(o?.todayCost ?? 0)} />
+        <DashboardStatCard icon="grid" color="indigo" label="总 Token" value={formatTokens(o?.totalTokens ?? 0)} subtext={formatCost(o?.totalCost ?? 0)} />
+        <DashboardStatCard icon="trendingUp" color="violet" label="性能" value={`${(o?.rpm ?? 0).toFixed(1)} RPM`} />
+        <DashboardStatCard icon="clock" color="rose" label="平均响应" value={formatDuration(o?.avgDurationMs ?? 0)} />
       </div>
 
-      {/* 用量排行榜 */}
+      {/* Charts */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <ModelDistributionCard data={modelData} loading={chartsLoading} isDark={isDark} />
+        <TokenTrendCard data={tokenTrend} loading={chartsLoading} isDark={isDark} />
+      </div>
+
+      {/* User Usage Trend */}
+      <UserTrendCard data={userTrend} loading={chartsLoading} isDark={isDark} />
+
+      {/* Leaderboards */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Leaderboard
           title={`今日用量排行 · 合计 $${todaySummary.totalCost.toFixed(2)}`}
@@ -316,7 +592,7 @@ export default function AdminDashboardPage() {
           loading={todayLoading}
           sortBy={todaySortBy}
           onSortChange={fetchTodayUsage}
-          valueFormatter={todaySortBy === 'totalCost' ? formatCost : formatTokens}
+          valueFormatter={todaySortBy === 'totalCost' ? formatCostItem : formatTokensItem}
           emptyText="今日暂无用量数据"
         />
         <Leaderboard
@@ -325,7 +601,7 @@ export default function AdminDashboardPage() {
           loading={monthLoading}
           sortBy={monthSortBy}
           onSortChange={fetchMonthUsage}
-          valueFormatter={monthSortBy === 'totalCost' ? formatCost : formatTokens}
+          valueFormatter={monthSortBy === 'totalCost' ? formatCostItem : formatTokensItem}
           emptyText="本月暂无用量数据"
         />
       </div>
