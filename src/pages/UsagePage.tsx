@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { formatUsageLogTime } from '../utils/time';
 import clsx from 'clsx';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { DataTable } from '../components/ui/DataTable';
@@ -33,27 +34,6 @@ function formatDuration(ms: unknown): string {
   if (!v) return '—';
   if (v < 1000) return v + 'ms';
   return (v / 1000).toFixed(1) + 's';
-}
-
-function formatTime(val: unknown): string {
-  if (!val) return '—';
-  const d = new Date(String(val));
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-
-  let relative: string;
-  if (diffMin < 1) relative = '刚刚';
-  else if (diffMin < 60) relative = `${diffMin}分钟前`;
-  else if (diffHr < 24) relative = `${diffHr}小时前`;
-  else relative = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-
-  const full = d.toLocaleString('zh-CN', {
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
-  return `${full} (${relative})`;
 }
 
 type TimePreset = '7d' | '30d' | '90d' | 'custom';
@@ -151,7 +131,7 @@ export default function UsagePage() {
 
       const header = ['时间', '模型', '平台', '分组', '输入Tokens', '输出Tokens', '缓存命中', '总Tokens', '用时(ms)', '首字(ms)', '花费(USD)', 'IP'];
       const rows = allLogs.map((l) => [
-        l.createdAt ?? '',
+        formatUsageLogTime(l.createdAt) ?? '',
         l.model ?? '',
         l.platform ?? '',
         l.groupId ?? '',
@@ -199,7 +179,7 @@ export default function UsagePage() {
       label: '时间',
       headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center text-xs text-gray-500 dark:text-dark-400',
-      formatter: (val: unknown) => formatTime(val),
+      formatter: (val: unknown) => formatUsageLogTime(val),
     },
     {
       key: 'model',
