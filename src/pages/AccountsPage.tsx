@@ -296,6 +296,17 @@ export default function AccountsPage() {
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
+  // ---- 折叠/展开 ----
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+
+  const toggleExpand = (id: number) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
   // ---- 基础字段 ----
   const [name, setName] = useState('');
   const [platform, setPlatform] = useState('openai');
@@ -886,142 +897,198 @@ export default function AccountsPage() {
                 const usage = parseAccountUsageStatus(a.sessionWindowStatus);
                 const codexWindows = usage?.kind === 'codex' ? usage.windows : [];
 
+                const isExpanded = expandedIds.has(a.id);
+
                 return (
                   <article
                     key={a.id}
-                    className="group rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-900 dark:hover:border-violet-800/70"
+                    className="rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:border-violet-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-900 dark:hover:border-violet-800/70"
                   >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
-                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                            {a.platform ?? '—'}
-                          </span>
-                          <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
-                            {a.type}
-                          </span>
-                          <StatusBadge status={a.status ?? 'ACTIVE'} />
-                        </div>
-                        <div className="flex min-w-0 items-center gap-2">
-                          <h3 className="truncate text-base font-bold text-gray-900 dark:text-white">{a.name}</h3>
-                          <span className="shrink-0 text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
-                        </div>
+                    {/* ── 摘要栏（始终可见）── */}
+                    <button
+                      type="button"
+                      onClick={() => toggleExpand(a.id)}
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                    >
+                      {/* 平台 + 类型 + 状态 */}
+                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                          {a.platform ?? '—'}
+                        </span>
+                        <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+                          {a.type}
+                        </span>
+                        <StatusBadge status={a.status ?? 'ACTIVE'} />
                       </div>
-                      <div className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/60">
-                        <div className="text-right">
-                          <p className="text-[11px] text-gray-400 dark:text-dark-500">可调度</p>
-                          <p className={`text-xs font-semibold ${a.schedulable ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-dark-500'}`}>
-                            {a.schedulable ? '开启' : '关闭'}
-                          </p>
-                        </div>
-                        <Toggle checked={a.schedulable} onChange={() => handleToggleSchedulable(a)} />
-                      </div>
-                    </div>
 
-                    <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
-                        <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">模型能力</p>
-                        {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
-                          <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">未配置模型</span>
-                        )}
-                        {supportedModels.length === 1 && supportedModels[0] === '*' && (
-                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">* 全部模型</span>
-                        )}
-                        {supportedModels.length > 0 && supportedModels[0] !== '*' && (
-                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                            <span className="max-w-full truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
-                              {supportedModels[0]}
+                      {/* 名称 + ID */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="truncate text-sm font-bold text-gray-900 dark:text-white">{a.name}</h3>
+                          <span className="shrink-0 text-[11px] font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
+                        </div>
+                      </div>
+
+                      {/* 行内关键指标 */}
+                      <div className="hidden shrink-0 items-center gap-3 text-xs text-gray-400 dark:text-dark-500 sm:flex">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="font-medium text-gray-600 dark:text-dark-300">并发</span>
+                          {a.concurrency ?? 3}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="font-medium text-gray-600 dark:text-dark-300">优先级</span>
+                          {a.priority ?? 50}
+                        </span>
+                        {(() => {
+                          const models = parseSupportedModels(a);
+                          const label = models.length === 0 ? '未配置' : models[0] === '*' ? '全部' : `${models.length}个`;
+                          return (
+                            <span className="inline-flex items-center gap-1">
+                              <span className="font-medium text-gray-600 dark:text-dark-300">模型</span>
+                              {label}
                             </span>
-                            {supportedModels.length > 1 && <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 1}</span>}
+                          );
+                        })()}
+                      </div>
+
+                      {/* 展开/折叠箭头 */}
+                      <div className="shrink-0">
+                        <Icon
+                          name="chevronRight"
+                          size="sm"
+                          className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                        />
+                      </div>
+                    </button>
+
+                    {/* ── 展开内容 ── */}
+                    <div
+                      className={`overflow-hidden transition-all duration-200 ease-in-out ${
+                        isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
+                      }`}
+                    >
+                      <div className="border-t border-gray-100 px-4 pb-4 dark:border-dark-700">
+                        {/* 可调度开关 */}
+                        <div className="mt-3 flex items-center justify-end gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/60">
+                          <div className="text-right">
+                            <p className="text-[11px] text-gray-400 dark:text-dark-500">可调度</p>
+                            <p className={`text-xs font-semibold ${a.schedulable ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-dark-500'}`}>
+                              {a.schedulable ? '开启' : '关闭'}
+                            </p>
                           </div>
-                        )}
-                      </div>
-
-                      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
-                        <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">协议能力</p>
-                        {protocols.length === 0 ? (
-                          <span className="text-xs text-gray-400 dark:text-dark-500">未限制协议</span>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5">
-                            {protocols.map((proto) => (
-                              <span
-                                key={proto}
-                                className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
-                              >
-                                {proto}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                      <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
-                        <p className="text-[11px] text-gray-400 dark:text-dark-500">并发</p>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{a.concurrency ?? 3}</p>
-                      </div>
-                      <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
-                        <p className="text-[11px] text-gray-400 dark:text-dark-500">优先级</p>
-                        <p className="text-sm font-bold text-gray-900 dark:text-white">{a.priority ?? 50}</p>
-                      </div>
-                      <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700 sm:col-span-2">
-                        <p className="text-[11px] text-gray-400 dark:text-dark-500">最近使用</p>
-                        <p className="truncate text-xs font-medium text-gray-600 dark:text-dark-300">
-                          {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : '暂无记录'}
-                        </p>
-                      </div>
-                    </div>
-
-                    {codexWindows.length > 0 && (
-                      <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 p-3 dark:border-violet-900/30 dark:bg-violet-900/10">
-                        <div className="mb-2 flex items-center justify-between gap-2">
-                          <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Codex 限额</p>
-                          {usage?.kind === 'codex' && usage.activeLimit && (
-                            <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
-                              {usage.activeLimit}
-                            </span>
-                          )}
+                          <Toggle checked={a.schedulable} onChange={() => handleToggleSchedulable(a)} />
                         </div>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                          {codexWindows.map((window) => (
-                            <div key={`${window.label}-${window.scope}`} className="rounded-lg bg-white px-3 py-2 dark:bg-dark-800/70">
-                              <div className="mb-1 flex items-center justify-between text-xs">
-                                <span className="font-semibold text-gray-700 dark:text-dark-200">{window.label}</span>
-                                <span className="text-gray-500 dark:text-dark-400">
-                                  {window.usedPercent == null ? '用量未知' : `剩余 ${window.remainingPercent ?? Math.max(0, 100 - window.usedPercent)}%`}
+
+                        {/* 模型 & 协议能力 */}
+                        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
+                            <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">模型能力</p>
+                            {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
+                              <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">未配置模型</span>
+                            )}
+                            {supportedModels.length === 1 && supportedModels[0] === '*' && (
+                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">* 全部模型</span>
+                            )}
+                            {supportedModels.length > 0 && supportedModels[0] !== '*' && (
+                              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                                <span className="max-w-full truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
+                                  {supportedModels[0]}
                                 </span>
+                                {supportedModels.length > 1 && <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 1}</span>}
                               </div>
-                              <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
-                                <div
-                                  className={`h-full rounded-full ${codexBarColor(window.usedPercent)}`}
-                                  style={{ width: `${window.usedPercent == null ? 0 : Math.min(Math.max(window.usedPercent, 0), 100)}%` }}
-                                />
+                            )}
+                          </div>
+
+                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
+                            <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">协议能力</p>
+                            {protocols.length === 0 ? (
+                              <span className="text-xs text-gray-400 dark:text-dark-500">未限制协议</span>
+                            ) : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {protocols.map((proto) => (
+                                  <span
+                                    key={proto}
+                                    className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                                  >
+                                    {proto}
+                                  </span>
+                                ))}
                               </div>
-                              <p className="mt-1.5 text-[11px] text-gray-400 dark:text-dark-500">
-                                {window.resetAt ? formatTimeUntil(window.resetAt) : '刷新时间未知'}
-                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* 并发 / 优先级 / 最近使用 */}
+                        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                          <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
+                            <p className="text-[11px] text-gray-400 dark:text-dark-500">并发</p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{a.concurrency ?? 3}</p>
+                          </div>
+                          <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
+                            <p className="text-[11px] text-gray-400 dark:text-dark-500">优先级</p>
+                            <p className="text-sm font-bold text-gray-900 dark:text-white">{a.priority ?? 50}</p>
+                          </div>
+                          <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700 sm:col-span-2">
+                            <p className="text-[11px] text-gray-400 dark:text-dark-500">最近使用</p>
+                            <p className="truncate text-xs font-medium text-gray-600 dark:text-dark-300">
+                              {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : '暂无记录'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Codex 限额 */}
+                        {codexWindows.length > 0 && (
+                          <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 p-3 dark:border-violet-900/30 dark:bg-violet-900/10">
+                            <div className="mb-2 flex items-center justify-between gap-2">
+                              <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Codex 限额</p>
+                              {usage?.kind === 'codex' && usage.activeLimit && (
+                                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
+                                  {usage.activeLimit}
+                                </span>
+                              )}
                             </div>
-                          ))}
+                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                              {codexWindows.map((window) => (
+                                <div key={`${window.label}-${window.scope}`} className="rounded-lg bg-white px-3 py-2 dark:bg-dark-800/70">
+                                  <div className="mb-1 flex items-center justify-between text-xs">
+                                    <span className="font-semibold text-gray-700 dark:text-dark-200">{window.label}</span>
+                                    <span className="text-gray-500 dark:text-dark-400">
+                                      {window.usedPercent == null ? '用量未知' : `剩余 ${window.remainingPercent ?? Math.max(0, 100 - window.usedPercent)}%`}
+                                    </span>
+                                  </div>
+                                  <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+                                    <div
+                                      className={`h-full rounded-full ${codexBarColor(window.usedPercent)}`}
+                                      style={{ width: `${window.usedPercent == null ? 0 : Math.min(Math.max(window.usedPercent, 0), 100)}%` }}
+                                    />
+                                  </div>
+                                  <p className="mt-1.5 text-[11px] text-gray-400 dark:text-dark-500">
+                                    {window.resetAt ? formatTimeUntil(window.resetAt) : '刷新时间未知'}
+                                  </p>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 操作按钮 */}
+                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-dark-700">
+                          <Button variant="secondary" size="sm" onClick={() => setDrawerAccount(a)}>
+                            <Icon name="cog" size="xs" /> 模型配置
+                          </Button>
+                          {a.type === 'oauth' && (
+                            <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)}>
+                              <Icon name="refresh" size="xs" /> 刷新 Token
+                            </Button>
+                          )}
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                            <Icon name="edit" size="xs" /> 编辑
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
+                            <Icon name="trash" size="xs" className="text-red-500" /> 删除
+                          </Button>
                         </div>
                       </div>
-                    )}
-
-                    <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-dark-700">
-                      <Button variant="secondary" size="sm" onClick={() => setDrawerAccount(a)}>
-                        <Icon name="cog" size="xs" /> 模型配置
-                      </Button>
-                      {a.type === 'oauth' && (
-                        <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)}>
-                          <Icon name="refresh" size="xs" /> 刷新 Token
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                        <Icon name="edit" size="xs" /> 编辑
-                      </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
-                        <Icon name="trash" size="xs" className="text-red-500" /> 删除
-                      </Button>
                     </div>
                   </article>
                 );
