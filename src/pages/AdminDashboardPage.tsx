@@ -155,10 +155,16 @@ function DashboardStatCard({ icon, color, label, value, subtext }: {
 
 // ─── Chart Colors ───────────────────────────────────────────
 
-const CHART_COLORS = [
-  '#6366f1', '#8b5cf6', '#a855f7', '#d946ef',
-  '#ec4899', '#f43f5e', '#f97316', '#eab308',
-  '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6',
+const CHART_COLORS_LIGHT = [
+  '#818cf8', '#a78bfa', '#c084fc', '#e879f9',
+  '#f472b6', '#fb7185', '#fb923c', '#fbbf24',
+  '#4ade80', '#2dd4bf', '#22d3ee', '#60a5fa',
+];
+
+const CHART_COLORS_DARK = [
+  '#a5b4fc', '#c4b5fd', '#d8b4fe', '#f0abfc',
+  '#f9a8d4', '#fda4af', '#fdba74', '#fcd34d',
+  '#86efac', '#5eead4', '#67e8f9', '#93c5fd',
 ];
 
 const USER_COLORS = [
@@ -174,6 +180,7 @@ function ModelDistributionCard({ data, loading, isDark }: {
   loading: boolean;
   isDark: boolean;
 }) {
+  const colors = isDark ? CHART_COLORS_DARK : CHART_COLORS_LIGHT;
   const sorted = useMemo(() => [...data].sort((a, b) => b.totalTokens - a.totalTokens), [data]);
   const top = useMemo(() => {
     const t = sorted.slice(0, 10);
@@ -187,17 +194,17 @@ function ModelDistributionCard({ data, loading, isDark }: {
   }, [sorted]);
 
   return (
-    <div className="card p-4">
+    <div className="group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
       <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">模型分布</h3>
       {loading ? (
-        <div className="flex h-48 items-center justify-center">
+        <div className="flex h-64 items-center justify-center">
           <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
         </div>
       ) : top.length === 0 ? (
-        <div className="flex h-48 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
+        <div className="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
       ) : (
-        <div className="flex items-start gap-4">
-          <div className="h-48 w-48 shrink-0">
+        <div className="flex items-center gap-4">
+          <div className="h-64 w-64 shrink-0">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
@@ -206,21 +213,24 @@ function ModelDistributionCard({ data, loading, isDark }: {
                   nameKey="model"
                   cx="50%"
                   cy="50%"
-                  innerRadius={40}
-                  outerRadius={70}
-                  paddingAngle={1}
+                  innerRadius={55}
+                  outerRadius={100}
+                  paddingAngle={2}
+                  cornerRadius={3}
                 >
                   {top.map((_, i) => (
-                    <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                    <Cell key={i} fill={colors[i % colors.length]} stroke="none" />
                   ))}
                 </Pie>
                 <ReTooltip
                   contentStyle={{
-                    background: isDark ? '#1e1e2e' : '#fff',
-                    border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
-                    borderRadius: 8,
+                    background: isDark ? 'rgba(30,30,46,0.95)' : 'rgba(255,255,255,0.95)',
+                    backdropFilter: 'blur(8px)',
+                    border: `1px solid ${isDark ? 'rgba(55,65,81,0.5)' : 'rgba(229,231,235,0.8)'}`,
+                    borderRadius: 12,
                     color: isDark ? '#f9fafb' : '#111827',
                     fontSize: 12,
+                    boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
                   }}
                   itemStyle={{ color: isDark ? '#f9fafb' : '#111827' }}
                   labelStyle={{ color: isDark ? '#f9fafb' : '#111827' }}
@@ -235,28 +245,28 @@ function ModelDistributionCard({ data, loading, isDark }: {
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="min-w-0 flex-1 overflow-y-auto" style={{ maxHeight: 192 }}>
+          <div className="min-w-0 flex-1 overflow-y-auto" style={{ maxHeight: 256 }}>
             <table className="w-full text-xs">
               <thead>
-                <tr className="text-gray-500 dark:text-dark-400">
-                  <th className="pb-1 text-left font-medium">模型</th>
-                  <th className="pb-1 text-right font-medium">调用</th>
-                  <th className="pb-1 text-right font-medium">Token</th>
-                  <th className="pb-1 text-right font-medium">费用</th>
+                <tr className="text-gray-400 dark:text-dark-500">
+                  <th className="pb-2 text-left font-medium">模型</th>
+                  <th className="pb-2 text-right font-medium">调用</th>
+                  <th className="pb-2 text-right font-medium">Token</th>
+                  <th className="pb-2 text-right font-medium">费用</th>
                 </tr>
               </thead>
               <tbody>
                 {top.map((m, i) => (
-                  <tr key={m.model} className="border-t border-gray-50 dark:border-dark-700/50">
-                    <td className="py-1.5">
-                      <div className="flex items-center gap-1.5">
-                        <span className="inline-block h-2 w-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        <span className="truncate text-gray-800 dark:text-dark-200">{m.model}</span>
+                  <tr key={m.model} className="border-t border-gray-100/60 dark:border-dark-700/40">
+                    <td className="py-2">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block h-2.5 w-2.5 rounded-full shadow-sm" style={{ background: colors[i % colors.length] }} />
+                        <span className="truncate text-gray-700 dark:text-dark-200">{m.model}</span>
                       </div>
                     </td>
-                    <td className="py-1.5 text-right tabular-nums text-gray-600 dark:text-dark-300">{formatNumber(m.callCount)}</td>
-                    <td className="py-1.5 text-right tabular-nums text-gray-600 dark:text-dark-300">{formatTokens(m.totalTokens)}</td>
-                    <td className="py-1.5 text-right tabular-nums font-medium text-rose-600 dark:text-rose-400">{formatCost(Number(m.totalCost))}</td>
+                    <td className="py-2 text-right tabular-nums text-gray-500 dark:text-dark-400">{formatNumber(m.callCount)}</td>
+                    <td className="py-2 text-right tabular-nums text-gray-500 dark:text-dark-400">{formatTokens(m.totalTokens)}</td>
+                    <td className="py-2 text-right tabular-nums font-medium text-rose-500 dark:text-rose-400">{formatCost(Number(m.totalCost))}</td>
                   </tr>
                 ))}
               </tbody>

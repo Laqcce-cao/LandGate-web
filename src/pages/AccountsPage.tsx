@@ -13,6 +13,7 @@ import { LoadingSpinner } from '../components/ui/LoadingSpinner';
 import { ConfirmDialog } from '../components/ui/ConfirmDialog';
 import { Icon } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
+import { parseAccountUsageStatus, type CodexUsageWindow } from './accountUsage';
 
 // ---------------------------------------------------------------------------
 // 工具函数
@@ -28,40 +29,69 @@ const parseJsonSafe = (raw: unknown): Record<string, unknown> => {
 
 // ---- Rate Limit 相关 ----
 
-interface RateLimitBucket {
-  limit: number;
-  remaining: number;
-  reset?: string;
-}
-
-interface RateLimitStatus {
-  tokens?: RateLimitBucket;
-  requests?: RateLimitBucket;
-}
-
-const parseRateLimitStatus = (raw: string | undefined): RateLimitStatus | null => {
-  if (!raw) return null;
-  try {
-    const parsed = JSON.parse(raw);
-    return (parsed && (parsed.tokens || parsed.requests)) ? parsed as RateLimitStatus : null;
-  } catch {
-    return null;
-  }
-};
-
 const formatTimeUntil = (resetIso: string): string => {
   const reset = new Date(resetIso);
   const diffMs = reset.getTime() - Date.now();
-  if (diffMs <= 0) return 'resetting now';
+  if (diffMs <= 0) return '正在刷新';
   const hours = Math.floor(diffMs / 3600000);
   const minutes = Math.floor((diffMs % 3600000) / 60000);
   if (hours > 24) {
     const days = Math.floor(hours / 24);
-    return `resets in ${days}d ${hours % 24}h`;
+    return `${days}天${hours % 24}小时后刷新`;
   }
-  if (hours > 0) return `resets in ${hours}h ${minutes}m`;
-  return `resets in ${minutes}m`;
+  if (hours > 0) return `${hours}小时${minutes}分钟后刷新`;
+  return `${minutes}分钟后刷新`;
 };
+
+const formatResetAt = (resetIso: string | null): string => {
+  if (!resetIso) return '未知';
+  return new Date(resetIso).toLocaleString();
+};
+
+const codexBarColor = (usedPercent: number | null): string => {
+  if (usedPercent == null) return 'bg-gray-300 dark:bg-dark-600';
+  if (usedPercent > 90) return 'bg-red-500';
+  if (usedPercent > 70) return 'bg-amber-500';
+  return 'bg-emerald-500';
+};
+
+function CodexUsageWindowCard({ window }: { window: CodexUsageWindow }) {
+  const usedPercent = window.usedPercent;
+  const width = usedPercent == null ? 0 : Math.min(Math.max(usedPercent, 0), 100);
+
+  return (
+    <div className="rounded-lg border border-gray-100 px-4 py-3 dark:border-dark-700">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-800 dark:text-dark-200">{window.label} 窗口</p>
+          <p className="mt-0.5 text-xs text-gray-400 dark:text-dark-500">
+            {window.windowMinutes ? `${window.windowMinutes} 分钟` : '窗口时长未知'} · {window.scope}
+          </p>
+        </div>
+        <div className="text-right text-xs text-gray-500 dark:text-dark-400">
+          {usedPercent == null ? (
+            <span className="font-medium text-gray-400">用量未知</span>
+          ) : (
+            <>
+              <span className="font-semibold text-gray-900 dark:text-white">已用 {usedPercent}%</span>
+              <span className="ml-1">剩余 {window.remainingPercent ?? Math.max(0, 100 - usedPercent)}%</span>
+            </>
+          )}
+        </div>
+      </div>
+      <div className="h-2.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${codexBarColor(usedPercent)}`}
+          style={{ width: `${width}%` }}
+        />
+      </div>
+      <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-gray-400 dark:text-dark-500">
+        <span>刷新时间：{formatResetAt(window.resetAt)}</span>
+        {window.resetAt && <span>{formatTimeUntil(window.resetAt)}</span>}
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // 每种认证类型对应的凭证字段定义
@@ -837,7 +867,7 @@ export default function AccountsPage() {
           </div>
         </div>
 
-        {/* ── 表格 ── */}
+        {/* ── 卡片列表 ── */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <LoadingSpinner size="xl" />
@@ -848,139 +878,155 @@ export default function AccountsPage() {
             <p className="text-sm">{hasFilters ? '没有匹配的账号' : '暂无账号，点击右上角"添加账号"开始'}</p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100 bg-gray-50/60 dark:border-dark-700 dark:bg-dark-800/40">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">账号</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-44">类型</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-64">模型</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-48">调度</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-28">状态</th>
-                  <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-32">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-dark-800">
-                {filteredAccounts.map((a) => {
-                  const supportedModels = parseSupportedModels(a);
+          <div className="min-h-0 flex-1 overflow-auto p-4">
+            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+              {filteredAccounts.map((a) => {
+                const supportedModels = parseSupportedModels(a);
+                const protocols = parseProtocolsArray(a.supportedProtocols);
+                const usage = parseAccountUsageStatus(a.sessionWindowStatus);
+                const codexWindows = usage?.kind === 'codex' ? usage.windows : [];
 
-                  return (
-                    <tr key={a.id} className="hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors">
-                      <td className="px-5 py-4">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">
-                              {a.name}
-                            </span>
-                            <span className="text-xs font-mono text-gray-400 dark:text-dark-500 tabular-nums">
-                              #{a.id}
-                            </span>
-                          </div>
-                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                              {a.platform ?? '—'}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="space-y-1.5">
-                          <span className="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-dark-800 dark:text-dark-300">
+                return (
+                  <article
+                    key={a.id}
+                    className="group rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-900 dark:hover:border-violet-800/70"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="mb-2 flex flex-wrap items-center gap-1.5">
+                          <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                            {a.platform ?? '—'}
+                          </span>
+                          <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
                             {a.type}
                           </span>
-                          {(() => {
-                            const protocols = parseProtocolsArray(a.supportedProtocols);
-                            if (protocols.length === 0) {
-                              return <p className="text-xs text-gray-400 dark:text-dark-500">未限制协议</p>;
-                            }
-                            return (
-                              <div className="flex flex-wrap gap-1">
-                                {protocols.map((proto) => (
-                                  <span
-                                    key={proto}
-                                    className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
-                                  >
-                                    {proto}
-                                  </span>
-                                ))}
-                              </div>
-                            );
-                          })()}
+                          <StatusBadge status={a.status ?? 'ACTIVE'} />
                         </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="min-w-0 flex-1">
-                            {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
-                              <span className="text-xs font-medium text-amber-500 dark:text-amber-400">未配置模型</span>
-                            )}
-                            {supportedModels.length === 1 && supportedModels[0] === '*' && (
-                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">
-                                * 全部模型
-                              </span>
-                            )}
-                            {supportedModels.length > 0 && supportedModels[0] !== '*' && (
-                              <div className="flex min-w-0 items-center gap-1.5">
-                                <span className="truncate rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
-                                  {supportedModels[0]}
-                                </span>
-                                {supportedModels.length > 1 && (
-                                  <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 1}</span>
-                                )}
-                              </div>
-                            )}
+                        <div className="flex min-w-0 items-center gap-2">
+                          <h3 className="truncate text-base font-bold text-gray-900 dark:text-white">{a.name}</h3>
+                          <span className="shrink-0 text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/60">
+                        <div className="text-right">
+                          <p className="text-[11px] text-gray-400 dark:text-dark-500">可调度</p>
+                          <p className={`text-xs font-semibold ${a.schedulable ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-dark-500'}`}>
+                            {a.schedulable ? '开启' : '关闭'}
+                          </p>
+                        </div>
+                        <Toggle checked={a.schedulable} onChange={() => handleToggleSchedulable(a)} />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-2">
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
+                        <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">模型能力</p>
+                        {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
+                          <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">未配置模型</span>
+                        )}
+                        {supportedModels.length === 1 && supportedModels[0] === '*' && (
+                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">* 全部模型</span>
+                        )}
+                        {supportedModels.length > 0 && supportedModels[0] !== '*' && (
+                          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                            <span className="max-w-full truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
+                              {supportedModels[0]}
+                            </span>
+                            {supportedModels.length > 1 && <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 1}</span>}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setDrawerAccount(a)}
-                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:border-violet-300 hover:text-violet-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400 dark:hover:border-violet-600 dark:hover:text-violet-400"
-                          >
-                            <Icon name="cog" size="xs" /> 配置
-                          </button>
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <div className="flex items-center gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums">
-                                并发 {a.concurrency ?? 3}
+                        )}
+                      </div>
+
+                      <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
+                        <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">协议能力</p>
+                        {protocols.length === 0 ? (
+                          <span className="text-xs text-gray-400 dark:text-dark-500">未限制协议</span>
+                        ) : (
+                          <div className="flex flex-wrap gap-1.5">
+                            {protocols.map((proto) => (
+                              <span
+                                key={proto}
+                                className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                              >
+                                {proto}
                               </span>
-                              <span className="rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums">
-                                优先 {a.priority ?? 50}
-                              </span>
-                            </div>
-                            <p className="text-xs text-gray-400 dark:text-dark-500">调度参数</p>
+                            ))}
                           </div>
-                          <Toggle
-                            checked={a.schedulable}
-                            onChange={() => handleToggleSchedulable(a)}
-                          />
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <StatusBadge status={a.status ?? 'ACTIVE'} />
-                      </td>
-                      <td className="px-5 py-4 text-right">
-                        <div className="flex items-center justify-end gap-0.5">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                            <Icon name="edit" size="xs" />
-                          </Button>
-                          {a.type === 'oauth' && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)} title="刷新 Token">
-                              <Icon name="refresh" size="xs" />
-                            </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                      <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
+                        <p className="text-[11px] text-gray-400 dark:text-dark-500">并发</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{a.concurrency ?? 3}</p>
+                      </div>
+                      <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
+                        <p className="text-[11px] text-gray-400 dark:text-dark-500">优先级</p>
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{a.priority ?? 50}</p>
+                      </div>
+                      <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700 sm:col-span-2">
+                        <p className="text-[11px] text-gray-400 dark:text-dark-500">最近使用</p>
+                        <p className="truncate text-xs font-medium text-gray-600 dark:text-dark-300">
+                          {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : '暂无记录'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {codexWindows.length > 0 && (
+                      <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 p-3 dark:border-violet-900/30 dark:bg-violet-900/10">
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Codex 限额</p>
+                          {usage?.kind === 'codex' && usage.activeLimit && (
+                            <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
+                              {usage.activeLimit}
+                            </span>
                           )}
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
-                            <Icon name="trash" size="xs" className="text-red-500" />
-                          </Button>
                         </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                          {codexWindows.map((window) => (
+                            <div key={`${window.label}-${window.scope}`} className="rounded-lg bg-white px-3 py-2 dark:bg-dark-800/70">
+                              <div className="mb-1 flex items-center justify-between text-xs">
+                                <span className="font-semibold text-gray-700 dark:text-dark-200">{window.label}</span>
+                                <span className="text-gray-500 dark:text-dark-400">
+                                  {window.usedPercent == null ? '用量未知' : `剩余 ${window.remainingPercent ?? Math.max(0, 100 - window.usedPercent)}%`}
+                                </span>
+                              </div>
+                              <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
+                                <div
+                                  className={`h-full rounded-full ${codexBarColor(window.usedPercent)}`}
+                                  style={{ width: `${window.usedPercent == null ? 0 : Math.min(Math.max(window.usedPercent, 0), 100)}%` }}
+                                />
+                              </div>
+                              <p className="mt-1.5 text-[11px] text-gray-400 dark:text-dark-500">
+                                {window.resetAt ? formatTimeUntil(window.resetAt) : '刷新时间未知'}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-dark-700">
+                      <Button variant="secondary" size="sm" onClick={() => setDrawerAccount(a)}>
+                        <Icon name="cog" size="xs" /> 模型配置
+                      </Button>
+                      {a.type === 'oauth' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)}>
+                          <Icon name="refresh" size="xs" /> 刷新 Token
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
+                        <Icon name="edit" size="xs" /> 编辑
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
+                        <Icon name="trash" size="xs" className="text-red-500" /> 删除
+                      </Button>
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
           </div>
         )}
       </div>
@@ -1539,19 +1585,30 @@ export default function AccountsPage() {
 
               {/* OAuth 用量 */}
               {a.type === 'oauth' && (() => {
-                const status = parseRateLimitStatus(a.sessionWindowStatus);
+                const status = parseAccountUsageStatus(a.sessionWindowStatus);
                 if (!status) return null;
                 return (
                   <>
                     <div className="border-t border-gray-100 dark:border-dark-700" />
                     <div>
-                      <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">
-                        <Icon name="chartBar" size="sm" className="inline mr-1.5 text-violet-500" />
-                        用量概览
-                      </h3>
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-300">
+                          <Icon name="chartBar" size="sm" className="inline mr-1.5 text-violet-500" />
+                          用量概览
+                        </h3>
+                        {status.kind === 'codex' && status.activeLimit && (
+                          <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">
+                            {status.activeLimit}
+                          </span>
+                        )}
+                      </div>
                       <div className="space-y-3">
-                        {(['tokens', 'requests'] as const).map((key) => {
-                          const bucket = status[key];
+                        {status.kind === 'codex' && status.windows.map((window) => (
+                          <CodexUsageWindowCard key={`${window.label}-${window.scope}`} window={window} />
+                        ))}
+
+                        {status.kind === 'legacy' && (['tokens', 'requests'] as const).map((key) => {
+                          const bucket = status.buckets[key];
                           if (!bucket) return null;
                           const used = bucket.limit - bucket.remaining;
                           const pct = bucket.limit > 0 ? Math.round((used / bucket.limit) * 100) : 0;
