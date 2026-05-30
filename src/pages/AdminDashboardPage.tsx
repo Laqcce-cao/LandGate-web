@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import clsx from 'clsx';
 import {
   PieChart, Pie, Cell, Tooltip as ReTooltip, ResponsiveContainer,
@@ -10,9 +10,10 @@ import {
   type ModelStats,
   type PlatformDailyStats,
   type UserDailyStats,
-  type UserUsageSummary,
+  type DashboardTimeRangeParams,
 } from '../api/admin/dashboard';
 import { Icon, type IconName } from '../components/ui/Icon';
+import { DatePicker } from '../components/ui/DatePicker';
 import { Skeleton } from '../components/ui/Skeleton';
 import { useToastStore } from '../stores/toastStore';
 import { useThemeStore } from '../stores/themeStore';
@@ -42,6 +43,75 @@ function formatCost(n: number): string {
 function formatDuration(ms: number): string {
   if (ms >= 1000) return `${(ms / 1000).toFixed(2)}s`;
   return `${Math.round(ms)}ms`;
+}
+
+function todayStr(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function daysAgoStr(d: number): string {
+  const dt = new Date();
+  dt.setDate(dt.getDate() - d);
+  return dt.toISOString().slice(0, 10);
+}
+
+function daysBetween(start: string, end: string): number {
+  const startTime = new Date(`${start}T00:00:00`).getTime();
+  const endTime = new Date(`${end}T00:00:00`).getTime();
+  const diff = Math.ceil((endTime - startTime) / 86_400_000);
+  return Number.isFinite(diff) && diff > 0 ? diff : 30;
+}
+
+type PresetKey = '7d' | '30d' | '90d' | 'custom';
+
+const PRESETS: { key: PresetKey; label: string; days?: number }[] = [
+  { key: '7d', label: '近7天', days: 7 },
+  { key: '30d', label: '近30天', days: 30 },
+  { key: '90d', label: '近90天', days: 90 },
+  { key: 'custom', label: '自定义' },
+];
+
+function TimeRangeBar({ preset, start, end, onPresetChange, onStartChange, onEndChange }: {
+  preset: PresetKey;
+  start: string;
+  end: string;
+  onPresetChange: (key: PresetKey) => void;
+  onStartChange: (v: string) => void;
+  onEndChange: (v: string) => void;
+}) {
+  const isCustom = preset === 'custom';
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+        {PRESETS.map((p) => (
+          <button
+            key={p.key}
+            className={clsx(
+              'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
+              preset === p.key
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200',
+            )}
+            onClick={() => onPresetChange(p.key)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {isCustom && <div className="h-5 w-px bg-gray-200 dark:bg-dark-600" />}
+
+      <div className={clsx(
+        'flex items-center gap-2 transition-all',
+        isCustom ? 'opacity-100' : 'pointer-events-none h-0 overflow-hidden opacity-0',
+      )}>
+        <DatePicker value={start} onChange={onStartChange} max={end} />
+        <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
+        <DatePicker value={end} onChange={onEndChange} min={start} max={todayStr()} />
+      </div>
+    </div>
+  );
 }
 
 // ─── Stat Card (sub2api style) ─────────────────────────────
@@ -149,8 +219,11 @@ function ModelDistributionCard({ data, loading, isDark }: {
                     background: isDark ? '#1e1e2e' : '#fff',
                     border: `1px solid ${isDark ? '#374151' : '#e5e7eb'}`,
                     borderRadius: 8,
+                    color: isDark ? '#f9fafb' : '#111827',
                     fontSize: 12,
                   }}
+                  itemStyle={{ color: isDark ? '#f9fafb' : '#111827' }}
+                  labelStyle={{ color: isDark ? '#f9fafb' : '#111827' }}
                   formatter={(value: number, _name: string, props: { payload?: { model?: string; totalCost?: number; callCount?: number } }) => {
                     const p = props.payload;
                     return [
@@ -348,121 +421,6 @@ function UserTrendCard({ data, loading, isDark }: {
   );
 }
 
-// ─── Leaderboard ────────────────────────────────────────────
-
-type SortBy = 'totalCost' | 'totalTokens';
-
-const AVATAR_COLORS = [
-  'from-violet-500 to-purple-600',
-  'from-emerald-500 to-teal-600',
-  'from-amber-500 to-orange-600',
-  'from-blue-500 to-cyan-600',
-  'from-pink-500 to-rose-600',
-  'from-indigo-500 to-blue-600',
-  'from-teal-500 to-emerald-600',
-  'from-orange-500 to-red-600',
-];
-
-function UserAvatar({ name, id, size }: { name: string; id: number; size?: 'sm' | 'md' }) {
-  const initial = (name || '?').charAt(0).toUpperCase();
-  const sizeClass = size === 'md' ? 'h-9 w-9 text-sm' : 'h-7 w-7 text-xs';
-  return (
-    <div className={`flex ${sizeClass} shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${AVATAR_COLORS[id % AVATAR_COLORS.length]} font-semibold text-white shadow-sm`}>
-      {initial}
-    </div>
-  );
-}
-
-function RankBadge({ rank }: { rank: number }) {
-  if (rank === 0) return <span className="text-lg">🥇</span>;
-  if (rank === 1) return <span className="text-lg">🥈</span>;
-  if (rank === 2) return <span className="text-lg">🥉</span>;
-  return (
-    <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-gray-100 text-xs font-semibold text-gray-500 dark:bg-dark-700 dark:text-dark-400">
-      {rank + 1}
-    </span>
-  );
-}
-
-function Leaderboard({ title, data, loading, sortBy, onSortChange, valueFormatter, emptyText }: {
-  title: string;
-  data: UserUsageSummary[];
-  loading: boolean;
-  sortBy: SortBy;
-  onSortChange: (sortBy: SortBy) => void;
-  valueFormatter: (item: UserUsageSummary) => string;
-  emptyText: string;
-}) {
-  const tabs: { key: SortBy; label: string }[] = [
-    { key: 'totalCost', label: '消费金额' },
-    { key: 'totalTokens', label: '使用 Token' },
-  ];
-
-  return (
-    <div className="card p-5">
-      <h3 className="mb-4 text-base font-semibold text-gray-900 dark:text-white">{title}</h3>
-      <div className="mb-4 flex rounded-lg bg-gray-100 p-1 dark:bg-dark-700">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={clsx(
-              'flex-1 rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
-              sortBy === tab.key
-                ? 'bg-white text-violet-600 shadow-sm dark:bg-dark-600 dark:text-violet-400'
-                : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
-            )}
-            onClick={() => onSortChange(tab.key)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      {loading ? (
-        <div className="space-y-3">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex items-center gap-3">
-              <Skeleton className="h-6 w-6 rounded-full" />
-              <Skeleton className="h-7 w-7 rounded-xl" />
-              <div className="flex-1 space-y-1"><Skeleton className="h-4 w-24" /><Skeleton className="h-3 w-32" /></div>
-              <Skeleton className="h-4 w-16" />
-            </div>
-          ))}
-        </div>
-      ) : data.length === 0 ? (
-        <div className="py-8 text-center text-sm text-gray-400 dark:text-dark-500">{emptyText}</div>
-      ) : (
-        <div className="space-y-1">
-          {data.map((item, idx) => {
-            const displayName = item.username || item.email || '未知用户';
-            return (
-              <div
-                key={item.userId}
-                className={clsx(
-                  'flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-dark-800',
-                  idx < 3 && 'bg-amber-50/40 dark:bg-amber-900/10'
-                )}
-              >
-                <div className="flex w-6 items-center justify-center"><RankBadge rank={idx} /></div>
-                <UserAvatar name={displayName} id={item.userId} size="sm" />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium text-gray-900 dark:text-white">{displayName}</p>
-                  <p className="truncate text-xs text-gray-400 dark:text-dark-500">{item.email}</p>
-                </div>
-                <span className={clsx(
-                  'shrink-0 text-sm font-semibold tabular-nums',
-                  sortBy === 'totalCost' ? 'text-emerald-600 dark:text-emerald-400' : 'text-violet-600 dark:text-violet-400'
-                )}>
-                  {valueFormatter(item)}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
-
 // ─── Main Page ──────────────────────────────────────────────
 
 export default function AdminDashboardPage() {
@@ -476,64 +434,60 @@ export default function AdminDashboardPage() {
   const { theme } = useThemeStore();
   const isDark = theme === 'dark';
 
-  const [todayData, setTodayData] = useState<UserUsageSummary[]>([]);
-  const [todayLoading, setTodayLoading] = useState(false);
-  const [todaySortBy, setTodaySortBy] = useState<SortBy>('totalCost');
-  const [monthData, setMonthData] = useState<UserUsageSummary[]>([]);
-  const [monthLoading, setMonthLoading] = useState(false);
-  const [monthSortBy, setMonthSortBy] = useState<SortBy>('totalCost');
+  const [preset, setPreset] = useState<PresetKey>('30d');
+  const [customStart, setCustomStart] = useState(daysAgoStr(30));
+  const [customEnd, setCustomEnd] = useState(todayStr());
+
+  const timeParams = useMemo<DashboardTimeRangeParams>(() => {
+    if (preset === 'custom') {
+      return {
+        days: daysBetween(customStart, customEnd),
+        start: customStart,
+        end: customEnd,
+      };
+    }
+    const p = PRESETS.find((p) => p.key === preset);
+    const days = p?.days ?? 30;
+    return { days, start: daysAgoStr(days), end: todayStr() };
+  }, [preset, customStart, customEnd]);
 
   useEffect(() => {
-    Promise.all([
-      dashboardApi.overview(),
-      dashboardApi.modelDistribution({ days: 7 }),
-      dashboardApi.tokenTrend({ days: 30 }),
-      dashboardApi.userTrend({ days: 30, topN: 12 }),
-      dashboardApi.userUsage({ period: 'today', sortBy: 'totalCost' }),
-      dashboardApi.userUsage({ period: 'month', sortBy: 'totalCost' }),
-    ])
-      .then(([overviewRes, modelRes, trendRes, userTrendRes, todayRes, monthRes]) => {
-        setOverview(overviewRes.data);
-        setModelData(modelRes.data);
-        setTokenTrend(trendRes.data);
-        setUserTrend(userTrendRes.data);
-        setTodayData(todayRes.data);
-        setMonthData(monthRes.data);
-      })
-      .catch(() => {
-        addToast({ type: 'error', message: '加载仪表盘数据失败' });
-      })
-      .finally(() => { setLoading(false); setChartsLoading(false); });
+    dashboardApi.overview()
+      .then((res) => setOverview(res.data))
+      .catch(() => addToast({ type: 'error', message: '加载仪表盘数据失败' }))
+      .finally(() => setLoading(false));
   }, [addToast]);
 
-  const fetchTodayUsage = (sortBy: SortBy) => {
-    setTodaySortBy(sortBy);
-    setTodayLoading(true);
-    dashboardApi.userUsage({ period: 'today', sortBy })
-      .then((res) => setTodayData(res.data))
-      .catch(() => addToast({ type: 'error', message: '加载今日排行失败' }))
-      .finally(() => setTodayLoading(false));
-  };
+  const fetchCharts = useCallback(async (params: DashboardTimeRangeParams) => {
+    setChartsLoading(true);
+    try {
+      const [modelRes, trendRes, userTrendRes] = await Promise.all([
+        dashboardApi.modelDistribution(params),
+        dashboardApi.tokenTrend(params),
+        dashboardApi.userTrend({ ...params, topN: 12 }),
+      ]);
+      setModelData(modelRes.data);
+      setTokenTrend(trendRes.data);
+      setUserTrend(userTrendRes.data);
+    } catch {
+      addToast({ type: 'error', message: '加载仪表盘图表失败' });
+    } finally {
+      setChartsLoading(false);
+    }
+  }, [addToast]);
 
-  const fetchMonthUsage = (sortBy: SortBy) => {
-    setMonthSortBy(sortBy);
-    setMonthLoading(true);
-    dashboardApi.userUsage({ period: 'month', sortBy })
-      .then((res) => setMonthData(res.data))
-      .catch(() => addToast({ type: 'error', message: '加载本月排行失败' }))
-      .finally(() => setMonthLoading(false));
-  };
+  useEffect(() => { fetchCharts(timeParams); }, [timeParams, fetchCharts]);
 
-  const formatCostItem = (item: UserUsageSummary) => `$${Number(item.totalCost).toFixed(4)}`;
-  const formatTokensItem = (item: UserUsageSummary) => formatTokens(item.totalTokens);
-
-  const todaySummary = useMemo(() => ({
-    totalCost: todayData.reduce((s, u) => s + Number(u.totalCost), 0),
-  }), [todayData]);
-
-  const monthSummary = useMemo(() => ({
-    totalCost: monthData.reduce((s, u) => s + Number(u.totalCost), 0),
-  }), [monthData]);
+  const handlePresetChange = useCallback((key: PresetKey) => {
+    setPreset(key);
+    if (key !== 'custom') {
+      const p = PRESETS.find((p) => p.key === key);
+      if (p?.days) {
+        setCustomStart(daysAgoStr(p.days));
+        setCustomEnd(todayStr());
+      }
+    }
+  }, []);
 
   const o = overview;
 
@@ -575,6 +529,16 @@ export default function AdminDashboardPage() {
         <DashboardStatCard icon="clock" color="rose" label="平均响应" value={formatDuration(o?.avgDurationMs ?? 0)} />
       </div>
 
+      {/* Time Range Selector */}
+      <TimeRangeBar
+        preset={preset}
+        start={customStart}
+        end={customEnd}
+        onPresetChange={handlePresetChange}
+        onStartChange={setCustomStart}
+        onEndChange={setCustomEnd}
+      />
+
       {/* Charts */}
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <ModelDistributionCard data={modelData} loading={chartsLoading} isDark={isDark} />
@@ -583,28 +547,6 @@ export default function AdminDashboardPage() {
 
       {/* User Usage Trend */}
       <UserTrendCard data={userTrend} loading={chartsLoading} isDark={isDark} />
-
-      {/* Leaderboards */}
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Leaderboard
-          title={`今日用量排行 · 合计 $${todaySummary.totalCost.toFixed(2)}`}
-          data={todayData}
-          loading={todayLoading}
-          sortBy={todaySortBy}
-          onSortChange={fetchTodayUsage}
-          valueFormatter={todaySortBy === 'totalCost' ? formatCostItem : formatTokensItem}
-          emptyText="今日暂无用量数据"
-        />
-        <Leaderboard
-          title={`本月用量排行 · 合计 $${monthSummary.totalCost.toFixed(2)}`}
-          data={monthData}
-          loading={monthLoading}
-          sortBy={monthSortBy}
-          onSortChange={fetchMonthUsage}
-          valueFormatter={monthSortBy === 'totalCost' ? formatCostItem : formatTokensItem}
-          emptyText="本月暂无用量数据"
-        />
-      </div>
     </div>
   );
 }

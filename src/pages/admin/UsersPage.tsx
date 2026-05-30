@@ -364,7 +364,7 @@ export default function UsersPage() {
       </div>
 
       {/* 搜索 + 表格 */}
-      <div className="card">
+      <div className="card overflow-hidden">
         {/* 搜索栏 */}
         <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-dark-700">
           <div className="flex items-center gap-3">
@@ -401,7 +401,9 @@ export default function UsersPage() {
           )}
         </div>
 
-        <DataTable columns={columns} data={users} loading={loading} />
+        <div className="max-h-[60vh] overflow-auto">
+          <DataTable columns={columns} data={users} loading={loading} />
+        </div>
 
         {/* 分页 */}
         {totalPages > 1 && (

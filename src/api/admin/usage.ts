@@ -49,19 +49,26 @@ export interface DailyUsageStats {
   callCount: number;
 }
 
+const withDateParams = (page: number, size: number, start?: string, end?: string) => ({
+  page,
+  size,
+  ...(start ? { start } : {}),
+  ...(end ? { end } : {}),
+});
+
 export const usageApi = {
-  list: (page = 0, size = 20) =>
-    client.get<UsageListResponse>('/admin/usage', { params: { page, size } }),
+  list: (page = 0, size = 20, start?: string, end?: string) =>
+    client.get<UsageListResponse>('/admin/usage', { params: withDateParams(page, size, start, end) }),
   myUsage: (page = 0, size = 20, start?: string, end?: string) =>
     client.get<UsageListResponse>('/user/usage/my', {
-      params: { page, size, ...(start ? { start } : {}), ...(end ? { end } : {}) },
+      params: withDateParams(page, size, start, end),
     }),
-  byUser: (userId: number, page = 0, size = 20) =>
-    client.get<UsageListResponse>(`/admin/usage/user/${userId}`, { params: { page, size } }),
-  byApiKey: (apiKeyId: number, page = 0, size = 20) =>
-    client.get<UsageListResponse>(`/admin/usage/key/${apiKeyId}`, { params: { page, size } }),
-  byAccount: (accountId: number, page = 0, size = 20) =>
-    client.get<UsageListResponse>(`/admin/usage/account/${accountId}`, { params: { page, size } }),
+  byUser: (userId: number, page = 0, size = 20, start?: string, end?: string) =>
+    client.get<UsageListResponse>(`/admin/usage/user/${userId}`, { params: withDateParams(page, size, start, end) }),
+  byApiKey: (apiKeyId: number, page = 0, size = 20, start?: string, end?: string) =>
+    client.get<UsageListResponse>(`/admin/usage/key/${apiKeyId}`, { params: withDateParams(page, size, start, end) }),
+  byAccount: (accountId: number, page = 0, size = 20, start?: string, end?: string) =>
+    client.get<UsageListResponse>(`/admin/usage/account/${accountId}`, { params: withDateParams(page, size, start, end) }),
 
   /** 按天聚合当前用户的 Token 用量统计（7d / 30d） */
   dailyStats: (start: string, end: string) =>

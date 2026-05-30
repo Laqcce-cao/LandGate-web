@@ -352,7 +352,7 @@ export default function GroupsPage() {
       </div>
 
       {/* tree */}
-      <div className="space-y-2">
+      <div className="max-h-[60vh] space-y-2 overflow-auto pr-1">
         {groups.map((g) => {
           const open = expanded.has(g.id);
           const gAccounts = accountsOfGroup(g.id);

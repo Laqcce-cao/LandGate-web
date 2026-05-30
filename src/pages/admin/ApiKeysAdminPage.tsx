@@ -60,6 +60,113 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
   ERROR: { label: '异常', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
 };
 
+/* ── Use Key Modal ── */
+
+function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => void; apiKey: AdminApiKey | null }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  const addToast = useToastStore((s) => s.addToast);
+
+  if (!apiKey) return null;
+
+  const baseUrl = window.location.origin + '/api/v1';
+
+  const handleCopy = async (text: string, label: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      setCopied(label);
+      setTimeout(() => setCopied(null), 2000);
+    } catch { addToast({ type: 'error', message: '复制失败' }); }
+  };
+
+  const codeBlock = (code: string, label: string) => (
+    <div className="group/code relative">
+      <pre className="overflow-x-auto rounded-lg bg-gray-900 p-3 text-xs leading-relaxed text-gray-200 dark:bg-dark-950">
+        <code>{code}</code>
+      </pre>
+      <button
+        onClick={() => handleCopy(code, label)}
+        className="absolute right-2 top-2 rounded-md bg-gray-700 p-1.5 text-gray-400 opacity-0 transition-all hover:bg-gray-600 hover:text-white group-hover/code:opacity-100"
+      >
+        <Icon name={copied === label ? 'check' : 'copy'} size="xs" />
+      </button>
+    </div>
+  );
+
+  return (
+    <Modal open={open} onClose={onClose} title="使用 API Key" width="wide">
+      <div className="space-y-5">
+        <div>
+          <label className="input-label">API 端点</label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-gray-800 dark:bg-dark-700 dark:text-dark-200">
+              {baseUrl}
+            </code>
+            <button
+              onClick={() => handleCopy(baseUrl, 'endpoint')}
+              className={`rounded-lg p-2 transition-colors ${
+                copied === 'endpoint' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-400 dark:hover:bg-dark-600'
+              }`}
+            >
+              <Icon name={copied === 'endpoint' ? 'check' : 'copy'} size="sm" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="input-label">API 密钥</label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-gray-800 dark:bg-dark-700 dark:text-dark-200">
+              {apiKey.key}
+            </code>
+            <button
+              onClick={() => handleCopy(apiKey.key, 'key')}
+              className={`rounded-lg p-2 transition-colors ${
+                copied === 'key' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-400 dark:hover:bg-dark-600'
+              }`}
+            >
+              <Icon name={copied === 'key' ? 'check' : 'copy'} size="sm" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="input-label">Claude Code 配置</label>
+          <p className="mb-2 text-xs text-gray-500 dark:text-dark-400">
+            在终端中运行以下命令，或添加到 shell 配置文件中：
+          </p>
+          {codeBlock(
+            `export ANTHROPIC_BASE_URL="${baseUrl}"\nexport ANTHROPIC_AUTH_TOKEN="${apiKey.key}"`,
+            'claude-code'
+          )}
+        </div>
+
+        <div>
+          <label className="input-label">OpenAI SDK (Python)</label>
+          {codeBlock(
+            `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrl}",\n    api_key="${apiKey.key}"\n)`,
+            'openai-python'
+          )}
+        </div>
+
+        <div>
+          <label className="input-label">cURL 示例</label>
+          {codeBlock(
+            `curl ${baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${apiKey.key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}'`,
+            'curl'
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 /* ── Form ── */
 
 interface FormState {
@@ -126,6 +233,7 @@ export default function ApiKeysAdminPage() {
   const [editTarget, setEditTarget] = useState<AdminApiKey | null>(null);
   const [groups, setGroups] = useState<Group[]>([]);
   const [copiedKeyId, setCopiedKeyId] = useState<number | null>(null);
+  const [useKeyTarget, setUseKeyTarget] = useState<AdminApiKey | null>(null);
   const addToast = useToastStore((s) => s.addToast);
 
   const groupMap = new Map(groups.map((g) => [g.id, g]));
@@ -290,14 +398,11 @@ export default function ApiKeysAdminPage() {
     const isExpired = key.expiresAt && new Date(key.expiresAt) < new Date();
 
     return (
-      <tr key={key.id} className="border-b border-gray-100 transition-colors hover:bg-gray-50/80 dark:border-dark-700/50 dark:hover:bg-dark-800/30">
-        {/* ID */}
-        <td className="whitespace-nowrap px-3 py-3">
-          <span className="text-xs text-gray-400 dark:text-dark-500">#{key.id}</span>
-        </td>
-
-        {/* 名称 */}
-        <td className="whitespace-nowrap px-4 py-3">
+      <tr
+        key={key.id}
+        className="border-b border-gray-100 transition-colors hover:bg-gray-50/80 dark:border-dark-700/50 dark:hover:bg-dark-800/30"
+      >
+        <td className="whitespace-nowrap px-2 py-3">
           <div className="flex items-center gap-1.5">
             <span className="text-sm font-medium text-gray-900 dark:text-white">{key.name}</span>
             {(key.ipWhitelist || key.ipBlacklist) && (
@@ -306,8 +411,7 @@ export default function ApiKeysAdminPage() {
           </div>
         </td>
 
-        {/* API 密钥 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           <div className="flex items-center gap-2">
             <code className="rounded bg-gray-100 px-1.5 py-0.5 text-xs font-mono text-gray-600 dark:bg-dark-700 dark:text-dark-300">
               {maskKey(key.key)}
@@ -324,24 +428,17 @@ export default function ApiKeysAdminPage() {
           </div>
         </td>
 
-        {/* 用户 ID */}
-        <td className="whitespace-nowrap px-3 py-3">
-          <span className="text-sm text-gray-600 dark:text-dark-300">{key.userId}</span>
-        </td>
-
-        {/* 分组 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           {group ? (
             <span className="inline-block rounded-md bg-violet-50 px-1.5 py-0.5 text-xs font-medium text-violet-600 dark:bg-violet-900/20 dark:text-violet-400">
               {group.name}
             </span>
           ) : (
-            <span className="text-sm text-gray-400 dark:text-dark-500">—</span>
+            <span className="text-sm text-gray-400 dark:text-dark-500">无分组</span>
           )}
         </td>
 
-        {/* 配额 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           {key.quota > 0 ? (
             <div>
               <div className="flex items-center gap-1.5">
@@ -369,8 +466,7 @@ export default function ApiKeysAdminPage() {
           )}
         </td>
 
-        {/* 速率限制 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           {key.rateLimit5h > 0 || key.rateLimit1d > 0 || key.rateLimit7d > 0 ? (
             <div className="space-y-0.5 text-xs">
               {key.rateLimit5h > 0 && <div className="text-gray-600 dark:text-dark-300">5h: ${key.usage5h?.toFixed(2) || '0.00'}/${key.rateLimit5h}</div>}
@@ -382,56 +478,55 @@ export default function ApiKeysAdminPage() {
           )}
         </td>
 
-        {/* 过期时间 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           <span className={`text-sm ${isExpired ? 'text-red-500 dark:text-red-400' : 'text-gray-500 dark:text-dark-400'}`}>
             {formatExpiry(key.expiresAt)}
           </span>
         </td>
 
-        {/* 状态 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           <span className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium ${sc.cls}`}>
             {sc.label}
           </span>
         </td>
 
-        {/* 上次使用 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           <span className="text-sm text-gray-500 dark:text-dark-400">{formatRelativeTime(key.lastUsedAt)}</span>
         </td>
 
-        {/* 创建时间 */}
-        <td className="whitespace-nowrap px-3 py-3">
+        <td className="whitespace-nowrap px-2 py-3">
           <span className="text-sm text-gray-500 dark:text-dark-400">{formatTime(key.createdAt)}</span>
         </td>
 
-        {/* 操作 */}
-        <td className="whitespace-nowrap px-3 py-3">
-          <div className="flex items-center gap-1">
+        <td className="whitespace-nowrap px-2 py-3">
+          <div className="flex items-center gap-0.5">
+            <button
+              onClick={() => setUseKeyTarget(key)}
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-green-50 hover:text-green-600 dark:hover:bg-green-900/20 dark:hover:text-green-400"
+              title="使用密钥"
+            >
+              <Icon name="externalLink" size="sm" />
+            </button>
             <button
               onClick={() => handleCopy(key.key, key.id)}
-              className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-blue-50 hover:text-blue-600 dark:hover:bg-blue-900/20 dark:hover:text-blue-400"
               title="复制密钥"
             >
               <Icon name="copy" size="sm" />
-              <span className="text-xs">复制</span>
             </button>
             <button
               onClick={() => openEdit(key)}
-              className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-gray-100 hover:text-primary-600 dark:hover:bg-dark-700 dark:hover:text-primary-400"
               title="编辑"
             >
               <Icon name="edit" size="sm" />
-              <span className="text-xs">编辑</span>
             </button>
             <button
               onClick={() => setDeleteTarget(key)}
-              className="flex flex-col items-center gap-0.5 rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
+              className="rounded-lg p-1.5 text-gray-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20 dark:hover:text-red-400"
               title="删除"
             >
               <Icon name="trash" size="sm" />
-              <span className="text-xs">删除</span>
             </button>
           </div>
         </td>
@@ -462,13 +557,13 @@ export default function ApiKeysAdminPage() {
           <LoadingSpinner size="lg" />
         </div>
       ) : keys.length === 0 ? (
-        <div className="card flex flex-col items-center gap-4 py-20">
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-gray-100/80 bg-white py-20 dark:border-dark-700/50 dark:bg-dark-800">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
             <Icon name="key" size="xl" className="text-violet-400 dark:text-violet-500" />
           </div>
           <div className="text-center">
             <p className="text-sm font-medium text-gray-600 dark:text-dark-300">暂无 API Key</p>
-            <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">创建一个 API Key 以开始</p>
+            <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">创建一个 API Key 以开始调用 LandGate API</p>
           </div>
           <Button variant="secondary" onClick={() => { setForm({ ...defaultForm }); setNewKey(null); setCreateOpen(true); }}>
             <Icon name="plus" size="sm" />
@@ -476,30 +571,36 @@ export default function ApiKeysAdminPage() {
           </Button>
         </div>
       ) : (
-        <div className="card overflow-x-auto">
-          <table className="w-full min-w-[1300px]">
-            <thead>
-              <tr className="border-b border-gray-200 bg-gray-50 text-xs font-medium uppercase tracking-wide text-gray-500 dark:border-dark-700 dark:bg-dark-800/50 dark:text-dark-400">
-                <th className="px-3 py-2.5 text-left">ID</th>
-                <th className="px-4 py-2.5 text-left">名称</th>
-                <th className="px-3 py-2.5 text-left">API 密钥</th>
-                <th className="px-3 py-2.5 text-left">用户</th>
-                <th className="px-3 py-2.5 text-left">分组</th>
-                <th className="px-3 py-2.5 text-left">配额</th>
-                <th className="px-3 py-2.5 text-left">速率限制</th>
-                <th className="px-3 py-2.5 text-left">过期时间</th>
-                <th className="px-3 py-2.5 text-left">状态</th>
-                <th className="px-3 py-2.5 text-left">上次使用</th>
-                <th className="px-3 py-2.5 text-left">创建时间</th>
-                <th className="px-3 py-2.5 text-left">操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              {keys.map(renderKeyRow)}
-            </tbody>
-          </table>
+        <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
+          <div className="max-h-[60vh] overflow-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-gray-100/60 bg-gray-50/50 text-xs font-medium uppercase tracking-wide text-gray-400 dark:border-dark-700/40 dark:bg-dark-800/30 dark:text-dark-500">
+                  <th className="px-3 py-2.5 text-left">名称</th>
+                  <th className="px-2 py-2.5 text-left">API 密钥</th>
+                  <th className="px-2 py-2.5 text-left">分组</th>
+                  <th className="px-2 py-2.5 text-left">用量</th>
+                  <th className="px-2 py-2.5 text-left">速率限制</th>
+                  <th className="px-2 py-2.5 text-left">过期时间</th>
+                  <th className="px-2 py-2.5 text-left">状态</th>
+                  <th className="px-2 py-2.5 text-left">上次使用</th>
+                  <th className="px-2 py-2.5 text-left">创建时间</th>
+                  <th className="px-2 py-2.5 text-left">操作</th>
+                </tr>
+              </thead>
+              <tbody>
+                {keys.map(renderKeyRow)}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      <UseKeyModal
+        open={!!useKeyTarget}
+        onClose={() => setUseKeyTarget(null)}
+        apiKey={useKeyTarget}
+      />
 
       {/* Create modal */}
       <Modal

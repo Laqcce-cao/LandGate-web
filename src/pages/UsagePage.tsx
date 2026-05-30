@@ -332,24 +332,26 @@ export default function UsagePage() {
       </div>
 
       <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
-        <DataTable
-          columns={columns}
-          data={logs}
-          loading={loading}
-          emptyState={
-            <div className="flex flex-col items-center gap-3 py-16">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
-                <Icon name="chart" size="lg" className="text-violet-400 dark:text-violet-500" />
+        <div className="max-h-[60vh] overflow-auto">
+          <DataTable
+            columns={columns}
+            data={logs}
+            loading={loading}
+            emptyState={
+              <div className="flex flex-col items-center gap-3 py-16">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
+                  <Icon name="chart" size="lg" className="text-violet-400 dark:text-violet-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-600 dark:text-dark-300">暂无使用记录</p>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
+                    发起 API 调用后将在此处显示用量明细
+                  </p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-gray-600 dark:text-dark-300">暂无使用记录</p>
-                <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
-                  发起 API 调用后将在此处显示用量明细
-                </p>
-              </div>
-            </div>
-          }
-        />
+            }
+          />
+        </div>
 
         <div className="flex items-center justify-between border-t border-gray-100/60 px-6 py-4 dark:border-dark-700/40">
           <span className="text-sm text-gray-500 dark:text-dark-400">

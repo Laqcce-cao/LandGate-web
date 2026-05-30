@@ -118,6 +118,93 @@ const PLATFORM_COLORS: Record<string, string> = {
   antigravity: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
+const STAT_COLORS = {
+  violet: {
+    bg: 'bg-violet-50 dark:bg-violet-900/20',
+    text: 'text-violet-600 dark:text-violet-400',
+    ring: 'ring-violet-100 dark:ring-violet-900/30',
+  },
+  emerald: {
+    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
+    text: 'text-emerald-600 dark:text-emerald-400',
+    ring: 'ring-emerald-100 dark:ring-emerald-900/30',
+  },
+  amber: {
+    bg: 'bg-amber-50 dark:bg-amber-900/20',
+    text: 'text-amber-600 dark:text-amber-400',
+    ring: 'ring-amber-100 dark:ring-amber-900/30',
+  },
+  red: {
+    bg: 'bg-red-50 dark:bg-red-900/20',
+    text: 'text-red-600 dark:text-red-400',
+    ring: 'ring-red-100 dark:ring-red-900/30',
+  },
+};
+
+function AccountStatCard({
+  icon,
+  label,
+  value,
+  color,
+}: {
+  icon: React.ComponentProps<typeof Icon>['name'];
+  label: string;
+  value: number;
+  color: keyof typeof STAT_COLORS;
+}) {
+  const c = STAT_COLORS[color];
+  return (
+    <div className="rounded-2xl border border-gray-100/80 bg-white p-3 shadow-sm dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="flex items-center gap-2.5">
+        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ${c.bg} ${c.text} ${c.ring}`}>
+          <Icon name={icon} size="sm" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-xl font-bold leading-tight text-gray-900 dark:text-white">{value}</p>
+          <p className="text-[11px] font-medium text-gray-500 dark:text-dark-400">{label}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FormSection({
+  icon,
+  tone = 'gray',
+  title,
+  description,
+  children,
+}: {
+  icon: React.ComponentProps<typeof Icon>['name'];
+  tone?: 'gray' | 'violet' | 'emerald' | 'amber' | 'blue';
+  title: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  const toneClass = {
+    gray: 'bg-gray-100 text-gray-500 dark:bg-dark-800 dark:text-dark-300',
+    violet: 'bg-violet-50 text-violet-600 dark:bg-violet-900/20 dark:text-violet-400',
+    emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20 dark:text-emerald-400',
+    amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400',
+    blue: 'bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400',
+  }[tone];
+
+  return (
+    <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+      <div className="mb-4 flex items-start gap-3">
+        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${toneClass}`}>
+          <Icon name={icon} size="sm" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-gray-900 dark:text-white">{title}</h3>
+          {description && <p className="mt-1 text-xs text-gray-500 dark:text-dark-400">{description}</p>}
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
 const PLATFORM_OPTIONS = [
   { value: 'openai', label: 'OpenAI (Chat Completions)' },
   { value: 'openai_responses', label: 'OpenAI (Responses API)' },
@@ -664,72 +751,25 @@ export default function AccountsPage() {
   };
 
   return (
-    <div>
-      {/* ── 统计卡片 ── */}
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
-          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-violet-50 dark:bg-violet-900/20" />
-          <div className="relative flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400">
-              <Icon name="server" size="lg" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{accounts.length}</p>
-              <p className="text-xs text-gray-500 dark:text-dark-400">账号总数</p>
-            </div>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
-          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-emerald-50 dark:bg-emerald-900/20" />
-          <div className="relative flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-              <Icon name="checkCircle" size="lg" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.active}</p>
-              <p className="text-xs text-gray-500 dark:text-dark-400">活跃</p>
-            </div>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
-          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-amber-50 dark:bg-amber-900/20" />
-          <div className="relative flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400">
-              <Icon name="play" size="lg" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.schedulable}</p>
-              <p className="text-xs text-gray-500 dark:text-dark-400">可调度</p>
-            </div>
-          </div>
-        </div>
-        <div className="relative overflow-hidden rounded-xl border border-gray-200 bg-white p-5 dark:border-dark-700 dark:bg-dark-900">
-          <div className="absolute -right-3 -top-3 h-16 w-16 rounded-full bg-red-50 dark:bg-red-900/20" />
-          <div className="relative flex items-center gap-4">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-400">
-              <Icon name="ban" size="lg" />
-            </div>
-            <div>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">{stats.disabled}</p>
-              <p className="text-xs text-gray-500 dark:text-dark-400">已禁用</p>
-            </div>
-          </div>
-        </div>
+    <div className="flex h-[calc(100vh-7rem)] min-h-0 flex-col gap-4 overflow-hidden">
+      <div className="grid shrink-0 grid-cols-2 gap-3 xl:grid-cols-4">
+        <AccountStatCard icon="server" label="账号总数" value={accounts.length} color="violet" />
+        <AccountStatCard icon="checkCircle" label="活跃账号" value={stats.active} color="emerald" />
+        <AccountStatCard icon="play" label="可调度" value={stats.schedulable} color="amber" />
+        <AccountStatCard icon="ban" label="已禁用" value={stats.disabled} color="red" />
       </div>
 
-      {/* ── 搜索 + 筛选 ── */}
-      <div className="card">
-        <div className="flex items-center justify-between gap-3 overflow-x-auto border-b border-gray-100 px-5 py-4 dark:border-dark-700">
-          <div className="flex items-center gap-3 shrink-0">
-            {/* 搜索 */}
-            <div className="relative">
+      <div className="card shrink-0 p-3">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
+            <div className="relative md:w-64">
               <Icon
                 name="search"
                 size="sm"
                 className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-dark-400"
               />
               <input
-                className="input w-44 pl-9"
+                className="input w-full pl-9"
                 placeholder="搜索账号名称..."
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
@@ -737,24 +777,18 @@ export default function AccountsPage() {
               />
             </div>
             <Button onClick={() => setSearch(searchInput.trim())} size="sm">搜索</Button>
-
-            {/* 平台筛选 */}
             <Select
               options={[{ value: '', label: '全部平台' }, ...PLATFORM_OPTIONS]}
               value={filterPlatform}
               onChange={setFilterPlatform}
-              className="w-40"
+              className="md:w-40"
             />
-
-            {/* 类型筛选 */}
             <Select
               options={[{ value: '', label: '全部类型' }, ...TYPE_OPTIONS]}
               value={filterType}
               onChange={setFilterType}
-              className="w-40"
+              className="md:w-40"
             />
-
-            {/* 状态筛选 */}
             <Select
               options={[
                 { value: '', label: '全部状态' },
@@ -763,29 +797,43 @@ export default function AccountsPage() {
               ]}
               value={filterStatus}
               onChange={setFilterStatus}
-              className="w-36"
+              className="md:w-36"
             />
-
+          </div>
+          <div className="flex items-center justify-between gap-3 xl:justify-end">
+            <span className="text-sm whitespace-nowrap text-gray-500 dark:text-dark-400">
+              共 {filteredAccounts.length} 个账号
+            </span>
             {hasFilters && (
               <button
-                className="text-sm text-gray-400 hover:text-gray-600 dark:text-dark-400 dark:hover:text-dark-200 transition-colors"
+                className="text-sm font-medium text-violet-600 transition-colors hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
                 onClick={clearFilters}
               >
                 清除筛选
               </button>
             )}
           </div>
+        </div>
+      </div>
 
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-sm whitespace-nowrap text-gray-400 dark:text-dark-500">
-              共 {filteredAccounts.length} 个账号
-            </span>
-            <Button variant="secondary" onClick={handleOpenOAuthModal}>
-              <Icon name="externalLink" size="sm" /> OAuth 授权
-            </Button>
-            <Button onClick={openCreate}>
-              <Icon name="plus" size="sm" /> 添加账号
-            </Button>
+      <div className="card flex min-h-0 flex-1 flex-col overflow-hidden">
+        <div className="border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">账号列表</h2>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-dark-400">查看账号状态、模型配置和调度参数。</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+                {filteredAccounts.length} / {accounts.length}
+              </span>
+              <Button variant="secondary" size="sm" onClick={handleOpenOAuthModal}>
+                <Icon name="externalLink" size="xs" /> OAuth 授权
+              </Button>
+              <Button size="sm" onClick={openCreate}>
+                <Icon name="plus" size="xs" /> 添加账号
+              </Button>
+            </div>
           </div>
         </div>
 
@@ -800,19 +848,15 @@ export default function AccountsPage() {
             <p className="text-sm">{hasFilters ? '没有匹配的账号' : '暂无账号，点击右上角"添加账号"开始'}</p>
           </div>
         ) : (
-          <div className="overflow-hidden">
+          <div className="min-h-0 flex-1 overflow-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-dark-700">
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-16">ID</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">名称</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-28">平台</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-32">类型</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-52">支持模型</th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">并发</th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">优先级</th>
-                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-24">状态</th>
-                  <th className="px-5 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">可调度</th>
+                <tr className="border-b border-gray-100 bg-gray-50/60 dark:border-dark-700 dark:bg-dark-800/40">
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">账号</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-44">类型</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-64">模型</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-48">调度</th>
+                  <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-28">状态</th>
                   <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-32">操作</th>
                 </tr>
               </thead>
@@ -822,29 +866,35 @@ export default function AccountsPage() {
 
                   return (
                     <tr key={a.id} className="hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors">
-                      <td className="px-5 py-3.5">
-                        <span className="text-xs font-mono text-gray-400 dark:text-dark-500 tabular-nums">
-                          #{a.id}
-                        </span>
+                      <td className="px-5 py-4">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">
+                              {a.name}
+                            </span>
+                            <span className="text-xs font-mono text-gray-400 dark:text-dark-500 tabular-nums">
+                              #{a.id}
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                              {a.platform ?? '—'}
+                            </span>
+                          </div>
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5">
-                        <span className="text-sm font-semibold text-gray-900 dark:text-white">
-                          {a.name}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                          {a.platform ?? '—'}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5">
-                        <div className="space-y-1">
-                          <span className="text-sm text-gray-500 dark:text-dark-400">{a.type}</span>
+                      <td className="px-5 py-4">
+                        <div className="space-y-1.5">
+                          <span className="inline-flex rounded-md bg-gray-100 px-2 py-1 text-xs font-medium text-gray-700 dark:bg-dark-800 dark:text-dark-300">
+                            {a.type}
+                          </span>
                           {(() => {
                             const protocols = parseProtocolsArray(a.supportedProtocols);
-                            if (protocols.length === 0) return null;
+                            if (protocols.length === 0) {
+                              return <p className="text-xs text-gray-400 dark:text-dark-500">未限制协议</p>;
+                            }
                             return (
-                              <div className="flex flex-wrap gap-0.5">
+                              <div className="flex flex-wrap gap-1">
                                 {protocols.map((proto) => (
                                   <span
                                     key={proto}
@@ -858,55 +908,60 @@ export default function AccountsPage() {
                           })()}
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 w-52">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
-                            <span className="text-xs text-amber-500 dark:text-amber-400 shrink-0">未配置</span>
-                          )}
-                          {supportedModels.length === 1 && supportedModels[0] === '*' && (
-                            <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400 shrink-0">
-                              * 全部模型
-                            </span>
-                          )}
-                          {supportedModels.length > 0 && supportedModels[0] !== '*' && (
-                            <>
-                              <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400 truncate shrink-0 max-w-[8rem]">
-                                {supportedModels[0]}
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <div className="min-w-0 flex-1">
+                            {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
+                              <span className="text-xs font-medium text-amber-500 dark:text-amber-400">未配置模型</span>
+                            )}
+                            {supportedModels.length === 1 && supportedModels[0] === '*' && (
+                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">
+                                * 全部模型
                               </span>
-                              {supportedModels.length > 1 && (
-                                <span className="text-xs text-gray-400 dark:text-dark-500 shrink-0">+{supportedModels.length - 1}</span>
-                              )}
-                            </>
-                          )}
+                            )}
+                            {supportedModels.length > 0 && supportedModels[0] !== '*' && (
+                              <div className="flex min-w-0 items-center gap-1.5">
+                                <span className="truncate rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
+                                  {supportedModels[0]}
+                                </span>
+                                {supportedModels.length > 1 && (
+                                  <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 1}</span>
+                                )}
+                              </div>
+                            )}
+                          </div>
                           <button
                             type="button"
                             onClick={() => setDrawerAccount(a)}
-                            className="inline-flex items-center rounded-md border border-gray-200 bg-white px-1.5 py-1 text-xs font-medium text-gray-500 hover:border-violet-300 hover:text-violet-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400 dark:hover:border-violet-600 dark:hover:text-violet-400 transition-colors shrink-0 ml-auto"
+                            className="inline-flex items-center gap-1 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-xs font-medium text-gray-500 transition-colors hover:border-violet-300 hover:text-violet-600 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400 dark:hover:border-violet-600 dark:hover:text-violet-400"
                           >
-                            <Icon name="cog" size="xs" />
+                            <Icon name="cog" size="xs" /> 配置
                           </button>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span className="inline-flex items-center justify-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums min-w-[2rem]">
-                          {a.concurrency ?? 3}
-                        </span>
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums">
+                                并发 {a.concurrency ?? 3}
+                              </span>
+                              <span className="rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums">
+                                优先 {a.priority ?? 50}
+                              </span>
+                            </div>
+                            <p className="text-xs text-gray-400 dark:text-dark-500">调度参数</p>
+                          </div>
+                          <Toggle
+                            checked={a.schedulable}
+                            onChange={() => handleToggleSchedulable(a)}
+                          />
+                        </div>
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <span className="inline-flex items-center justify-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-400 tabular-nums min-w-[2rem]">
-                          {a.priority ?? 50}
-                        </span>
-                      </td>
-                      <td className="px-5 py-3.5">
+                      <td className="px-5 py-4">
                         <StatusBadge status={a.status ?? 'ACTIVE'} />
                       </td>
-                      <td className="px-5 py-3.5 text-center">
-                        <Toggle
-                          checked={a.schedulable}
-                          onChange={() => handleToggleSchedulable(a)}
-                        />
-                      </td>
-                      <td className="px-5 py-3.5 text-right">
+                      <td className="px-5 py-4 text-right">
                         <div className="flex items-center justify-end gap-0.5">
                           <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
                             <Icon name="edit" size="xs" />
@@ -935,7 +990,7 @@ export default function AccountsPage() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         title={editTarget ? '编辑账号' : '添加账号'}
-        width="normal"
+        width="wide"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setModalOpen(false)}>取消</Button>
@@ -943,40 +998,75 @@ export default function AccountsPage() {
           </div>
         }
       >
-        <div className="space-y-5">
-          <Input label="名称" value={name} onChange={(e) => setName(e.target.value)} placeholder="输入账号名称" />
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="input-label">平台</label>
-              <Select options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} />
-            </div>
-            <div>
-              <label className="input-label">类型</label>
-              <Select options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
+        <div className="space-y-4">
+          <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 dark:border-violet-900/40 dark:bg-violet-900/10">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500 text-white shadow-sm">
+                <Icon name="edit" size="md" />
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-violet-800 dark:text-violet-300">
+                  {editTarget ? `编辑 ${editTarget.name}` : '添加上游账号'}
+                </p>
+                <p className="mt-0.5 text-xs text-violet-600/70 dark:text-violet-400/70">
+                  按配置项分组填写，保存后立即应用到调度系统。
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="并发上限"
-              type="number"
-              value={String(concurrency)}
-              onChange={(e) => setConcurrency(Number(e.target.value) || 1)}
-            />
-            <Input
-              label="优先级"
-              type="number"
-              value={String(priority)}
-              onChange={(e) => setPriority(Number(e.target.value) || 0)}
-            />
-          </div>
+          <FormSection icon="userCircle" tone="violet" title="基础信息" description="定义账号的名称、平台、认证类型和当前状态。">
+            <div className="space-y-4">
+              <Input label="名称" value={name} onChange={(e) => setName(e.target.value)} placeholder="输入账号名称" />
 
-          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
-            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
-              凭证 <span className="text-gray-400 font-normal">— {TYPE_OPTIONS.find((o) => o.value === type)?.label}</span>
-            </legend>
-            <div className="space-y-3 mt-1">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div>
+                  <label className="input-label">平台</label>
+                  <Select options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} />
+                </div>
+                <div>
+                  <label className="input-label">类型</label>
+                  <Select options={TYPE_OPTIONS} value={type} onChange={handleTypeChange} />
+                </div>
+                <div>
+                  <label className="input-label">状态</label>
+                  <Select
+                    options={[
+                      { value: 'ACTIVE', label: 'Active' },
+                      { value: 'DISABLED', label: 'Disabled' },
+                    ]}
+                    value={statusForm}
+                    onChange={setStatusForm}
+                  />
+                </div>
+              </div>
+            </div>
+          </FormSection>
+
+          <FormSection icon="cog" tone="amber" title="调度配置" description="控制该账号被路由选中时的并发上限和优先级。">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <Input
+                label="并发上限"
+                type="number"
+                value={String(concurrency)}
+                onChange={(e) => setConcurrency(Number(e.target.value) || 1)}
+              />
+              <Input
+                label="优先级"
+                type="number"
+                value={String(priority)}
+                onChange={(e) => setPriority(Number(e.target.value) || 0)}
+              />
+            </div>
+          </FormSection>
+
+          <FormSection
+            icon="key"
+            tone="emerald"
+            title="凭证"
+            description={`当前类型：${TYPE_OPTIONS.find((o) => o.value === type)?.label ?? type}`}
+          >
+            <div className="space-y-3">
               {credFields.map((f) => (
                 <div key={f.key}>
                   <label className="input-label">
@@ -1002,87 +1092,88 @@ export default function AccountsPage() {
                 </div>
               ))}
             </div>
-          </fieldset>
+          </FormSection>
 
-          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
-            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
-              额外配置 <span className="text-gray-400 font-normal">— 可选</span>
-            </legend>
-            <div className="mt-1 space-y-3">
-              <Input
-                label="Base URL"
-                value={extraBaseUrl}
-                onChange={(e) => setExtraBaseUrl(e.target.value)}
-                placeholder="https://custom-api.example.com（留空则使用默认地址）"
-              />
-              <p className="text-xs text-gray-400">覆盖默认的 API 上游地址。例如 Anthropic 的 https://api.anthropic.com，留空则走官方默认。</p>
-            </div>
-            <div className="mt-4 space-y-3">
-              <Toggle
-                checked={extraResponsesSupported}
-                onChange={setExtraResponsesSupported}
-                label="支持 OpenAI Responses API"
-              />
-              <p className="text-xs text-gray-400 -mt-2">上游是否支持 /v1/responses 端点。开启后网关可将请求转换为 Responses 格式发送。</p>
-
+          <FormSection icon="shield" tone="blue" title="协议能力" description="配置此账号支持的上游 API 协议和跨 Provider 调度能力。">
+            <div className="space-y-4">
               <div>
-                <label className="input-label">Responses API 模式</label>
-                <Select
-                  value={extraResponsesMode}
-                  onChange={setExtraResponsesMode}
-                  options={[
-                    { value: 'auto', label: 'auto — 自动检测' },
-                    { value: 'force_responses', label: 'force_responses — 强制走 /v1/responses' },
-                    { value: 'force_chat_completions', label: 'force_chat_completions — 强制走 /v1/chat/completions' },
-                  ]}
-                />
+                <div className="flex flex-wrap gap-3">
+                  {PROTOCOL_OPTIONS.map((p) => (
+                    <label
+                      key={p.value}
+                      className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
+                        accountProtocols[p.value]
+                          ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-600 dark:bg-violet-900/20 dark:text-violet-300'
+                          : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400'
+                      }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={accountProtocols[p.value] ?? false}
+                        onChange={(e) => setAccountProtocols((prev) => ({ ...prev, [p.value]: e.target.checked }))}
+                        className="sr-only"
+                      />
+                      {p.label}
+                    </label>
+                  ))}
+                </div>
+                <p className="mt-2 text-xs text-gray-400">留空则不限制协议。</p>
               </div>
-              <p className="text-xs text-gray-400 -mt-1">控制 Responses API 的使用策略：auto 由网关结合自动探测结果判断；force_responses 始终使用 /v1/responses；force_chat_completions 强制降级为 /v1/chat/completions（适配不支持 Responses 的兼容上游）。</p>
 
-              <Toggle
-                checked={extraPassthrough}
-                onChange={setExtraPassthrough}
-                label="Passthrough 透传模式"
-              />
-              <p className="text-xs text-gray-400 -mt-2">开启后上游请求不做协议转换，直接透传原始请求体。</p>
+              <div className="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+                <Toggle
+                  checked={mixedScheduling}
+                  onChange={setMixedScheduling}
+                  label="允许跨 Provider 混合调度"
+                />
+                <p className="mt-1 text-xs text-gray-400">开启后此账号可被不同 Provider 的分组调度使用。</p>
+              </div>
             </div>
-          </fieldset>
+          </FormSection>
 
-          <fieldset className="border border-gray-200 dark:border-dark-600 rounded-lg p-4">
-            <legend className="text-sm font-medium text-gray-700 dark:text-dark-300 px-1">
-              上游协议支持 <span className="text-gray-400 font-normal">— 可多选</span>
-            </legend>
-            <div className="mt-1 flex flex-wrap gap-3">
-              {PROTOCOL_OPTIONS.map((p) => (
-                <label
-                  key={p.value}
-                  className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
-                    accountProtocols[p.value]
-                      ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-600 dark:bg-violet-900/20 dark:text-violet-300'
-                      : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400'
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={accountProtocols[p.value] ?? false}
-                    onChange={(e) => setAccountProtocols((prev) => ({ ...prev, [p.value]: e.target.checked }))}
-                    className="sr-only"
+          <FormSection icon="server" tone="gray" title="额外配置" description="覆盖上游地址和 OpenAI Responses 相关兼容策略。">
+            <div className="space-y-4">
+              <div>
+                <Input
+                  label="Base URL"
+                  value={extraBaseUrl}
+                  onChange={(e) => setExtraBaseUrl(e.target.value)}
+                  placeholder="https://custom-api.example.com（留空则使用默认地址）"
+                />
+                <p className="mt-2 text-xs text-gray-400">覆盖默认的 API 上游地址。例如 Anthropic 的 https://api.anthropic.com，留空则走官方默认。</p>
+              </div>
+
+              <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
+                <Toggle
+                  checked={extraResponsesSupported}
+                  onChange={setExtraResponsesSupported}
+                  label="支持 OpenAI Responses API"
+                />
+                <p className="text-xs text-gray-400">上游是否支持 /v1/responses 端点。开启后网关可将请求转换为 Responses 格式发送。</p>
+
+                <div>
+                  <label className="input-label">Responses API 模式</label>
+                  <Select
+                    value={extraResponsesMode}
+                    onChange={setExtraResponsesMode}
+                    options={[
+                      { value: 'auto', label: 'auto — 自动检测' },
+                      { value: 'force_responses', label: 'force_responses — 强制走 /v1/responses' },
+                      { value: 'force_chat_completions', label: 'force_chat_completions — 强制走 /v1/chat/completions' },
+                    ]}
                   />
-                  {p.label}
-                </label>
-              ))}
-            </div>
-            <p className="mt-2 text-xs text-gray-400">选择此账号支持的上游 API 协议类型，留空则不限制。</p>
-          </fieldset>
+                </div>
+                <p className="text-xs text-gray-400">auto 由网关结合自动探测结果判断；force_responses 始终使用 /v1/responses；force_chat_completions 强制降级为 /v1/chat/completions。</p>
 
-          <div className="rounded-lg border border-gray-200 dark:border-dark-600 p-4">
-            <Toggle
-              checked={mixedScheduling}
-              onChange={setMixedScheduling}
-              label="允许跨 Provider 混合调度"
-            />
-            <p className="mt-1 text-xs text-gray-400">开启后此账号可被不同 Provider 的分组调度使用。</p>
-          </div>
+                <Toggle
+                  checked={extraPassthrough}
+                  onChange={setExtraPassthrough}
+                  label="Passthrough 透传模式"
+                />
+                <p className="text-xs text-gray-400">开启后上游请求不做协议转换，直接透传原始请求体。</p>
+              </div>
+            </div>
+          </FormSection>
         </div>
       </Modal>
 
@@ -1252,26 +1343,28 @@ export default function AccountsPage() {
 
           return (
             <div className="space-y-5">
-              {/* 账号信息 */}
-              <div className="flex items-center gap-3 rounded-xl bg-gray-50 px-4 py-3 dark:bg-dark-800">
-                <span className="text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
-                <span className="text-sm font-semibold text-gray-900 dark:text-white">{a.name}</span>
-                <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600'}`}>
-                  {a.platform}
-                </span>
-                <span className="text-xs text-gray-400">{a.type}</span>
-                <StatusBadge status={a.status ?? 'ACTIVE'} />
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
+                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{a.name}</span>
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {a.platform}
+                  </span>
+                  <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-dark-800 dark:text-dark-300">{a.type}</span>
+                  <StatusBadge status={a.status ?? 'ACTIVE'} />
+                </div>
               </div>
 
-              {/* 模型白名单 */}
-              <div>
-                <div className="mb-3 flex items-center justify-between">
-                  <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-300">
-                    <Icon name="badge" size="sm" className="inline mr-1.5 text-emerald-500" />
-                    支持模型（白名单）
-                  </h3>
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">当前策略</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-dark-400">决定该账号会匹配哪些模型请求。</p>
+                  </div>
                   {supportedModels.length > 0 && (
-                    <span className="text-xs text-gray-400 dark:text-dark-500">{supportedModels.length} 个</span>
+                    <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+                      {supportedModels[0] === '*' ? '全部' : `${supportedModels.length} 个模型`}
+                    </span>
                   )}
                 </div>
 
@@ -1279,12 +1372,14 @@ export default function AccountsPage() {
                   const raw = a.supportedModels;
                   if (raw == null || raw === '' || raw === '[]') {
                     return (
-                      <div className="rounded-xl border-2 border-dashed border-gray-200 px-6 py-8 text-center dark:border-dark-600">
-                        <div className="mx-auto mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-amber-50 dark:bg-amber-900/20">
-                          <Icon name="exclamationCircle" size="lg" className="text-amber-500" />
+                      <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/60 px-5 py-4 dark:border-amber-900/40 dark:bg-amber-900/10">
+                        <div className="flex gap-3">
+                          <Icon name="exclamationCircle" size="md" className="mt-0.5 text-amber-500" />
+                          <div>
+                            <p className="text-sm font-semibold text-amber-800 dark:text-amber-300">尚未配置支持模型</p>
+                            <p className="mt-1 text-xs text-amber-700/70 dark:text-amber-400/70">该账号不会被选中路由，请添加 “*” 支持所有模型或添加具体模型名。</p>
+                          </div>
                         </div>
-                        <p className="text-sm font-medium text-gray-700 dark:text-dark-300">尚未配置支持模型</p>
-                        <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">该账号不会被选中路由，请添加 "*" 支持所有模型或添加具体模型名</p>
                       </div>
                     );
                   }
@@ -1292,19 +1387,19 @@ export default function AccountsPage() {
                     const baseline = baselineModels[a.id] ?? [];
                     return (
                       <div className="space-y-4">
-                        <div className="rounded-xl border-2 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50 px-5 py-4 dark:border-blue-800 dark:from-blue-900/10 dark:to-indigo-900/10">
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 px-5 py-4 dark:border-blue-800 dark:bg-blue-900/10">
                           <div className="flex items-center gap-3">
                             <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-500 text-white shadow-sm">
                               <Icon name="sparkles" size="md" />
                             </div>
                             <div className="flex-1">
                               <p className="text-sm font-bold text-blue-800 dark:text-blue-300">匹配所有模型</p>
-                              <p className="text-xs text-blue-600/70 dark:text-blue-400/60">当前账号对所有模型请求开放</p>
+                              <p className="text-xs text-blue-600/70 dark:text-blue-400/70">当前账号对所有模型请求开放。</p>
                             </div>
                             <button
                               type="button"
                               onClick={() => removeSupportedModel(a.id, '*')}
-                              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-red-50 hover:border-red-200 hover:text-red-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:bg-red-900/30 dark:hover:border-red-700 dark:hover:text-red-400 transition-colors"
+                              className="rounded-lg border border-blue-200 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 transition-colors hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:border-blue-700 dark:bg-blue-900/30 dark:text-blue-400 dark:hover:border-red-700 dark:hover:bg-red-900/30 dark:hover:text-red-400"
                             >
                               取消通配
                             </button>
@@ -1312,7 +1407,7 @@ export default function AccountsPage() {
                         </div>
                         {baseline.length > 0 && (
                           <div>
-                            <p className="mb-2 text-xs font-medium text-gray-400 uppercase tracking-wider">待恢复模型</p>
+                            <p className="mb-2 text-xs font-medium uppercase tracking-wider text-gray-400">待恢复模型</p>
                             <div className="divide-y divide-gray-100 rounded-xl border border-dashed border-gray-200 dark:divide-dark-700 dark:border-dark-600">
                               {baseline.map((m) => (
                                 <div key={m} className="flex items-center justify-between px-4 py-2.5">
@@ -1320,7 +1415,7 @@ export default function AccountsPage() {
                                   <button
                                     type="button"
                                     onClick={() => setBaselineModels((prev) => ({ ...prev, [a.id]: (prev[a.id] ?? []).filter((x) => x !== m) }))}
-                                    className="text-gray-300 hover:text-red-500 transition-colors"
+                                    className="text-gray-300 transition-colors hover:text-red-500"
                                   >
                                     <Icon name="x" size="xs" />
                                   </button>
@@ -1333,17 +1428,17 @@ export default function AccountsPage() {
                     );
                   }
                   return (
-                    <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-dark-700 dark:border-dark-600 overflow-hidden">
+                    <div className="divide-y divide-gray-100 rounded-xl border border-gray-200 dark:divide-dark-700 dark:border-dark-600">
                       {supportedModels.map((m, i) => (
-                        <div key={m} className="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors">
-                          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400 shrink-0">
+                        <div key={m} className="flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-gray-50/50 dark:hover:bg-dark-800/50">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
                             <span className="text-xs font-bold">{i + 1}</span>
                           </div>
-                          <span className="flex-1 text-sm font-medium text-gray-700 dark:text-dark-300 truncate">{m}</span>
+                          <span className="flex-1 truncate text-sm font-medium text-gray-700 dark:text-dark-300">{m}</span>
                           <button
                             type="button"
                             onClick={() => removeSupportedModel(a.id, m)}
-                            className="shrink-0 rounded-lg p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20 transition-colors"
+                            className="shrink-0 rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
                           >
                             <Icon name="trash" size="xs" />
                           </button>
@@ -1352,9 +1447,14 @@ export default function AccountsPage() {
                     </div>
                   );
                 })()}
+              </div>
 
-                {/* 添加模型 */}
-                <div className="mt-4 flex gap-2">
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">添加模型</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-dark-400">选择具体模型，或选择通配符 “*” 让账号支持全部模型。</p>
+                </div>
+                <div className="flex gap-2">
                   <Select
                     options={[
                       { value: '*', label: '✦ 全部模型（通配符 *）' },

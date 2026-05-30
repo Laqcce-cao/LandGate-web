@@ -272,9 +272,12 @@ function ModelDistributionCard({ data, loading, isDark }: {
                     backdropFilter: 'blur(8px)',
                     border: `1px solid ${isDark ? 'rgba(55,65,81,0.5)' : 'rgba(229,231,235,0.8)'}`,
                     borderRadius: 12,
+                    color: isDark ? '#f9fafb' : '#111827',
                     fontSize: 12,
                     boxShadow: '0 4px 24px rgba(0,0,0,0.08)',
                   }}
+                  itemStyle={{ color: isDark ? '#f9fafb' : '#111827' }}
+                  labelStyle={{ color: isDark ? '#f9fafb' : '#111827' }}
                   formatter={(value: number, _name: string, props: { payload?: { model?: string; totalCost?: number; callCount?: number } }) => {
                     const p = props.payload;
                     return [

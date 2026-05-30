@@ -61,6 +61,12 @@ export interface UserDailyStats {
   totalTokens: number;
 }
 
+export interface DashboardTimeRangeParams {
+  days?: number;
+  start?: string;
+  end?: string;
+}
+
 export const dashboardApi = {
   stats: () => client.get<DashboardStats>('/admin/dashboard/stats'),
   revenue: () => client.get<RevenueSummary>('/admin/dashboard/revenue'),
@@ -69,10 +75,10 @@ export const dashboardApi = {
     sortBy?: 'totalCost' | 'totalTokens';
   }) => client.get<UserUsageSummary[]>('/admin/dashboard/user-usage', { params }),
   overview: () => client.get<DashboardOverview>('/admin/dashboard/overview'),
-  modelDistribution: (params?: { days?: number }) =>
+  modelDistribution: (params?: DashboardTimeRangeParams) =>
     client.get<ModelStats[]>('/admin/dashboard/model-distribution', { params }),
-  tokenTrend: (params?: { days?: number }) =>
+  tokenTrend: (params?: DashboardTimeRangeParams) =>
     client.get<PlatformDailyStats[]>('/admin/dashboard/token-trend', { params }),
-  userTrend: (params?: { days?: number; topN?: number }) =>
+  userTrend: (params?: DashboardTimeRangeParams & { topN?: number }) =>
     client.get<UserDailyStats[]>('/admin/dashboard/user-trend', { params }),
 };
