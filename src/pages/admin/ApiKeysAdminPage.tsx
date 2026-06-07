@@ -60,6 +60,9 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
   ERROR: { label: '异常', cls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
 };
 
+const CODEX_API_BASE_URL = 'https://laqcce-cao.com/v1';
+const CLAUDE_CODE_API_BASE_URL = 'https://laqcce-cao.com';
+
 /* ── Use Key Modal ── */
 
 function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => void; apiKey: AdminApiKey | null }) {
@@ -68,7 +71,8 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
 
   if (!apiKey) return null;
 
-  const baseUrl = window.location.origin + '/api/v1';
+  const codexBaseUrl = CODEX_API_BASE_URL;
+  const claudeCodeBaseUrl = CLAUDE_CODE_API_BASE_URL;
 
   const handleCopy = async (text: string, label: string) => {
     try {
@@ -103,18 +107,35 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
     <Modal open={open} onClose={onClose} title="使用 API Key" width="wide">
       <div className="space-y-5">
         <div>
-          <label className="input-label">API 端点</label>
+          <label className="input-label">Codex / OpenAI SDK API 端点</label>
           <div className="flex items-center gap-2">
             <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-gray-800 dark:bg-dark-700 dark:text-dark-200">
-              {baseUrl}
+              {codexBaseUrl}
             </code>
             <button
-              onClick={() => handleCopy(baseUrl, 'endpoint')}
+              onClick={() => handleCopy(codexBaseUrl, 'codex-endpoint')}
               className={`rounded-lg p-2 transition-colors ${
-                copied === 'endpoint' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-400 dark:hover:bg-dark-600'
+                copied === 'codex-endpoint' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-400 dark:hover:bg-dark-600'
               }`}
             >
-              <Icon name={copied === 'endpoint' ? 'check' : 'copy'} size="sm" />
+              <Icon name={copied === 'codex-endpoint' ? 'check' : 'copy'} size="sm" />
+            </button>
+          </div>
+        </div>
+
+        <div>
+          <label className="input-label">Claude Code API 端点</label>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-mono text-gray-800 dark:bg-dark-700 dark:text-dark-200">
+              {claudeCodeBaseUrl}
+            </code>
+            <button
+              onClick={() => handleCopy(claudeCodeBaseUrl, 'claude-endpoint')}
+              className={`rounded-lg p-2 transition-colors ${
+                copied === 'claude-endpoint' ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-500 hover:bg-gray-200 dark:bg-dark-700 dark:text-dark-400 dark:hover:bg-dark-600'
+              }`}
+            >
+              <Icon name={copied === 'claude-endpoint' ? 'check' : 'copy'} size="sm" />
             </button>
           </div>
         </div>
@@ -137,28 +158,39 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
         </div>
 
         <div>
-          <label className="input-label">Claude Code 配置</label>
+          <label className="input-label">Codex 配置</label>
           <p className="mb-2 text-xs text-gray-500 dark:text-dark-400">
             在终端中运行以下命令，或添加到 shell 配置文件中：
           </p>
           {codeBlock(
-            `export ANTHROPIC_BASE_URL="${baseUrl}"\nexport ANTHROPIC_AUTH_TOKEN="${apiKey.key}"`,
-            'claude-code'
+            `export OPENAI_BASE_URL="${codexBaseUrl}"\nexport OPENAI_API_KEY="${apiKey.key}"`,
+            'codex'
           )}
         </div>
 
         <div>
           <label className="input-label">OpenAI SDK (Python)</label>
           {codeBlock(
-            `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${baseUrl}",\n    api_key="${apiKey.key}"\n)`,
+            `from openai import OpenAI\n\nclient = OpenAI(\n    base_url="${codexBaseUrl}",\n    api_key="${apiKey.key}"\n)\n\nprompt = "Hello"\n\nresponse = client.chat.completions.create(\n    model="gpt-5.5",\n    messages=[\n        {"role": "user", "content": prompt}\n    ],\n    temperature=0,\n    stream=False,\n)\n\nprint(response.choices[0].message.content)`,
             'openai-python'
+          )}
+        </div>
+
+        <div>
+          <label className="input-label">Claude Code 配置</label>
+          <p className="mb-2 text-xs text-gray-500 dark:text-dark-400">
+            Claude Code 使用不带 /v1 的 API 端点：
+          </p>
+          {codeBlock(
+            `export ANTHROPIC_BASE_URL="${claudeCodeBaseUrl}"\nexport ANTHROPIC_AUTH_TOKEN="${apiKey.key}"`,
+            'claude-code'
           )}
         </div>
 
         <div>
           <label className="input-label">cURL 示例</label>
           {codeBlock(
-            `curl ${baseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${apiKey.key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"claude-sonnet-4-20250514","messages":[{"role":"user","content":"Hello"}]}'`,
+            `curl ${codexBaseUrl}/chat/completions \\\n  -H "Authorization: Bearer ${apiKey.key}" \\\n  -H "Content-Type: application/json" \\\n  -d '{"model":"gpt-5.5","messages":[{"role":"user","content":"Hello"}]}'`,
             'curl'
           )}
         </div>
