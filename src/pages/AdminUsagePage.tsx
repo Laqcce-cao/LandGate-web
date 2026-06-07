@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { formatUsageLogTime, parseUtcTime } from '../utils/time';
+import { formatUsageLogTime } from '../utils/time';
 import clsx from 'clsx';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { Button } from '../components/ui/Button';
@@ -49,35 +49,19 @@ function formatDuration(ms: unknown): string {
 }
 
 function dateToStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getPresetRange(preset: TimePreset): { start: string; end: string } {
   const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
   const start = new Date(end);
-  start.setDate(end.getDate() - days);
+  start.setDate(end.getDate() - days + 1);
   return { start: dateToStr(start), end: dateToStr(end) };
-}
-
-function filterLogsByDate(logs: UsageLog[], start?: string, end?: string): UsageLog[] {
-  if (!start && !end) return logs;
-
-  const startTime = start ? new Date(`${start}T00:00:00`).getTime() : null;
-  const endTime = end ? new Date(`${end}T00:00:00`).getTime() : null;
-
-  return logs.filter((log) => {
-    const createdAt = parseUtcTime(log.createdAt);
-    if (!createdAt) return false;
-    const time = createdAt.getTime();
-    return (startTime == null || time >= startTime) && (endTime == null || time < endTime);
-  });
-}
-
-function pageLogs(logs: UsageLog[], page: number, size: number): UsageLog[] {
-  const start = page * size;
-  return logs.slice(start, start + size);
 }
 
 export default function AdminUsagePage() {
@@ -97,14 +81,7 @@ export default function AdminUsagePage() {
 
   const dateRange = useMemo(() => {
     if (preset === 'custom') {
-      let start = startDate || undefined;
-      let end = endDate || undefined;
-      if (end) {
-        const d = new Date(end + 'T00:00:00');
-        d.setDate(d.getDate() + 1);
-        end = dateToStr(d);
-      }
-      return { start, end };
+      return { start: startDate || undefined, end: endDate || undefined };
     }
     return getPresetRange(preset);
   }, [preset, startDate, endDate]);
@@ -137,21 +114,21 @@ export default function AdminUsagePage() {
       p++;
     }
 
-    return filterLogsByDate(allLogs, dateRange.start, dateRange.end);
-  }, [fetchUsagePage, dateRange]);
+    return allLogs;
+  }, [fetchUsagePage]);
 
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      const filteredLogs = await fetchAllUsageLogs();
-      setLogs(pageLogs(filteredLogs, page, PAGE_SIZE));
-      setTotal(filteredLogs.length);
+      const res = await fetchUsagePage(page, PAGE_SIZE);
+      setLogs(res.data.logs ?? []);
+      setTotal(res.data.total ?? 0);
     } catch {
       addToast({ type: 'error', message: '加载用量日志失败' });
     } finally {
       setLoading(false);
     }
-  }, [page, fetchAllUsageLogs, addToast]);
+  }, [page, fetchUsagePage, addToast]);
 
   useEffect(() => {
     fetchLogs();

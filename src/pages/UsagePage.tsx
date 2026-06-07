@@ -46,15 +46,18 @@ const PRESETS: { key: TimePreset; label: string }[] = [
 ];
 
 function dateToStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getPresetRange(preset: TimePreset): { start: string; end: string } {
   const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
   const start = new Date(end);
-  start.setDate(end.getDate() - days);
+  start.setDate(end.getDate() - days + 1);
   return { start: dateToStr(start), end: dateToStr(end) };
 }
 
@@ -72,16 +75,7 @@ export default function UsagePage() {
   // Derive effective date range from preset or custom
   const dateRange = useMemo(() => {
     if (preset === 'custom') {
-      let start = startDate || undefined;
-      let end = endDate || undefined;
-      // Adjust custom end date to be exclusive (matching preset behavior)
-      // so the selected end date is included in results
-      if (end) {
-        const d = new Date(end + 'T00:00:00');
-        d.setDate(d.getDate() + 1);
-        end = dateToStr(d);
-      }
-      return { start, end };
+      return { start: startDate || undefined, end: endDate || undefined };
     }
     return getPresetRange(preset);
   }, [preset, startDate, endDate]);
