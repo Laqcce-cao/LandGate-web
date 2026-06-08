@@ -9,6 +9,7 @@ export interface CcSwitchImportDeeplinkInput {
   providerName: string;
   apiKey: string;
   model?: string;
+  usageScript?: string;
 }
 
 export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput): string {
@@ -24,6 +25,14 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
 
   if (input.model) {
     entries.splice(2, 0, ['model', input.model]);
+  }
+
+  if (input.usageScript) {
+    entries.push(
+      ['usageEnabled', 'true'],
+      ['usageScript', btoa(input.usageScript)],
+      ['usageAutoInterval', '30']
+    );
   }
 
   return `ccswitch://v1/import?${new URLSearchParams(entries).toString()}`;

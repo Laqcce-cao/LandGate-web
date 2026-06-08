@@ -108,6 +108,23 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
     </div>
   );
 
+  const usageScript = `({
+    request: {
+      url: "{{baseUrl}}/v1/usage",
+      method: "GET",
+      headers: { "Authorization": "Bearer {{apiKey}}" }
+    },
+    extractor: function(response) {
+      const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
+      const unit = response?.unit ?? response?.quota?.unit ?? "USD";
+      return {
+        isValid: response?.is_active ?? response?.isValid ?? true,
+        remaining,
+        unit
+      };
+    }
+  })`;
+
   const handleCcSwitchImport = (app: CcSwitchApp) => {
     const endpoint = app === 'codex' ? codexBaseUrl : claudeCodeBaseUrl;
     const deeplink = buildCcSwitchImportDeeplink({
@@ -117,6 +134,7 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
       providerName: 'LandGate',
       apiKey: apiKey.key,
       model: app === 'codex' ? OPENAI_CC_SWITCH_CODEX_MODEL : undefined,
+      usageScript,
     });
 
     try {
