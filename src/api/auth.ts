@@ -53,6 +53,8 @@ export interface ApiKey {
   status: string;
   groupId?: number;
   createdAt?: string;
+  lastUsedAt?: string;
+  expiresAt?: string;
   quota: number;
   quotaUsed: number;
 }

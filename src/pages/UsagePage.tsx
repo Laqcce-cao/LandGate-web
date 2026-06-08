@@ -1,7 +1,11 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { formatUsageLogTime } from '../utils/time';
+import clsx from 'clsx';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { DataTable } from '../components/ui/DataTable';
+import { DatePicker } from '../components/ui/DatePicker';
 import { Icon } from '../components/ui/Icon';
+import { Button } from '../components/ui/Button';
 import { useToastStore } from '../stores/toastStore';
 
 const platformConfig: Record<string, { label: string; color: string }> = {
@@ -32,27 +36,6 @@ function formatDuration(ms: unknown): string {
   return (v / 1000).toFixed(1) + 's';
 }
 
-function formatTime(val: unknown): string {
-  if (!val) return '—';
-  const d = new Date(String(val));
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-
-  let relative: string;
-  if (diffMin < 1) relative = '刚刚';
-  else if (diffMin < 60) relative = `${diffMin}分钟前`;
-  else if (diffHr < 24) relative = `${diffHr}小时前`;
-  else relative = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-
-  const full = d.toLocaleString('zh-CN', {
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
-  return `${full} (${relative})`;
-}
-
 type TimePreset = '7d' | '30d' | '90d' | 'custom';
 
 const PRESETS: { key: TimePreset; label: string }[] = [
@@ -63,15 +46,18 @@ const PRESETS: { key: TimePreset; label: string }[] = [
 ];
 
 function dateToStr(d: Date): string {
-  return d.toISOString().slice(0, 10);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
 function getPresetRange(preset: TimePreset): { start: string; end: string } {
   const now = new Date();
-  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
   const start = new Date(end);
-  start.setDate(end.getDate() - days);
+  start.setDate(end.getDate() - days + 1);
   return { start: dateToStr(start), end: dateToStr(end) };
 }
 
@@ -80,7 +66,7 @@ export default function UsagePage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(0);
-  const [statsLogs, setStatsLogs] = useState<UsageLog[]>([]);
+  const [exporting, setExporting] = useState(false);
   const [preset, setPreset] = useState<TimePreset>('30d');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
@@ -89,16 +75,7 @@ export default function UsagePage() {
   // Derive effective date range from preset or custom
   const dateRange = useMemo(() => {
     if (preset === 'custom') {
-      let start = startDate || undefined;
-      let end = endDate || undefined;
-      // Adjust custom end date to be exclusive (matching preset behavior)
-      // so the selected end date is included in results
-      if (end) {
-        const d = new Date(end + 'T00:00:00');
-        d.setDate(d.getDate() + 1);
-        end = dateToStr(d);
-      }
-      return { start, end };
+      return { start: startDate || undefined, end: endDate || undefined };
     }
     return getPresetRange(preset);
   }, [preset, startDate, endDate]);
@@ -117,13 +94,6 @@ export default function UsagePage() {
     }
   }, [page, dateRange, addToast]);
 
-  // Fetch larger batch for summary stats
-  useEffect(() => {
-    usageApi.myUsage(0, 200, dateRange.start, dateRange.end)
-      .then((res) => setStatsLogs(res.data.logs ?? []))
-      .catch(() => {});
-  }, [dateRange]);
-
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
@@ -133,13 +103,61 @@ export default function UsagePage() {
     setPage(0);
   }, [dateRange]);
 
-  const stats = useMemo(() => {
-    if (statsLogs.length === 0) return null;
-    const totalTokens = statsLogs.reduce((s, l) => s + (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0), 0);
-    const totalCost = statsLogs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
-    const totalRequests = statsLogs.length;
-    return { totalTokens, totalCost, totalRequests };
-  }, [statsLogs]);
+  // CSV export - fetch all logs for the selected date range and download
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const allLogs: UsageLog[] = [];
+      let p = 0;
+      const size = 500;
+      while (true) {
+        const res = await usageApi.myUsage(p, size, dateRange.start, dateRange.end);
+        const batch = res.data.logs ?? [];
+        allLogs.push(...batch);
+        if (allLogs.length >= (res.data.total ?? 0) || batch.length < size) break;
+        p++;
+      }
+
+      if (allLogs.length === 0) {
+        addToast({ type: 'warning', message: '没有可导出的数据' });
+        return;
+      }
+
+      const header = ['时间', '模型', '平台', '分组', '输入Tokens', '输出Tokens', '缓存命中', '总Tokens', '用时(ms)', '首字(ms)', '花费(USD)', 'IP'];
+      const rows = allLogs.map((l) => [
+        formatUsageLogTime(l.createdAt) ?? '',
+        l.model ?? '',
+        l.platform ?? '',
+        l.groupId ?? '',
+        l.inputTokens ?? 0,
+        l.outputTokens ?? 0,
+        l.cacheReadTokens ?? 0,
+        (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0),
+        l.durationMs ?? '',
+        l.firstTokenMs ?? '',
+        l.totalCost ?? 0,
+        l.ipAddress ?? '',
+      ]);
+
+      const csvContent = [header, ...rows]
+        .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+        .join('\n');
+
+      const BOM = '\uFEFF';
+      const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `usage_logs_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast({ type: 'success', message: `已导出 ${allLogs.length} 条记录` });
+    } catch {
+      addToast({ type: 'error', message: '导出失败' });
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const handlePresetChange = (p: TimePreset) => {
     setPreset(p);
@@ -155,7 +173,7 @@ export default function UsagePage() {
       label: '时间',
       headerClassName: '!text-center',
       className: 'whitespace-nowrap text-center text-xs text-gray-500 dark:text-dark-400',
-      formatter: (val: unknown) => formatTime(val),
+      formatter: (val: unknown) => formatUsageLogTime(val),
     },
     {
       key: 'model',
@@ -267,113 +285,69 @@ export default function UsagePage() {
   return (
     <div>
       {/* Time range filter bar */}
-      <div className="card mb-4 p-4">
-        <div className="flex flex-wrap items-center gap-4">
-          {/* Preset buttons */}
-          <div className="flex items-center rounded-lg border border-gray-200 bg-gray-50 p-0.5 dark:border-dark-700 dark:bg-dark-800">
-            {PRESETS.map((p) => (
-              <button
-                key={p.key}
-                onClick={() => handlePresetChange(p.key)}
-                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
-                  preset === p.key
-                    ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
-                }`}
-              >
-                {p.label}
-              </button>
-            ))}
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
+        {/* Preset buttons */}
+        <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              onClick={() => handlePresetChange(p.key)}
+              className={clsx(
+                'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
+                preset === p.key
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                  : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
+              )}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Divider */}
+        {preset === 'custom' && <div className="h-5 w-px bg-gray-200 dark:bg-dark-600" />}
+
+        {/* Custom date picker */}
+        {preset === 'custom' && (
+          <div className="flex items-center gap-2">
+            <DatePicker value={startDate} onChange={setStartDate} max={endDate || undefined} />
+            <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
+            <DatePicker value={endDate} onChange={setEndDate} min={startDate || undefined} />
           </div>
+        )}
 
-          {/* Custom date inputs */}
-          {preset === 'custom' && (
-            <div className="flex items-center gap-2">
-              <input
-                type="date"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="input w-auto text-xs"
-              />
-              <span className="text-xs text-gray-400">至</span>
-              <input
-                type="date"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="input w-auto text-xs"
-              />
-            </div>
-          )}
-
-          {/* Active range indicator */}
-          <span className="text-xs text-gray-400 dark:text-dark-500">
-            {preset !== 'custom'
-              ? PRESETS.find((p) => p.key === preset)?.label
-              : (startDate || endDate ? `${startDate || '最早'} ~ ${endDate || '现在'}` : '全部')}
-          </span>
+        {/* Export button */}
+        <div className="ml-auto">
+          <Button variant="secondary" size="sm" onClick={handleExportCsv} loading={exporting}>
+            <Icon name="download" size="xs" />
+            导出 CSV
+          </Button>
         </div>
       </div>
 
-      {/* Summary Cards */}
-      {stats && (
-        <div className="mb-4 grid grid-cols-3 gap-3">
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-              <Icon name="sparkles" size="sm" className="text-violet-600 dark:text-violet-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 dark:text-dark-400">总令牌</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
-                {formatTokens(stats.totalTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/30">
-              <Icon name="dollar" size="sm" className="text-rose-600 dark:text-rose-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 dark:text-dark-400">总花费</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
-                {formatCost(stats.totalCost)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-100 dark:bg-blue-900/30">
-              <Icon name="chartBar" size="sm" className="text-blue-600 dark:text-blue-400" />
-            </div>
-            <div>
-              <p className="text-xs text-gray-400 dark:text-dark-400">请求次数</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200">
-                {stats.totalRequests.toLocaleString()}
-              </p>
-            </div>
-          </div>
+      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
+        <div className="max-h-[60vh] overflow-auto">
+          <DataTable
+            columns={columns}
+            data={logs}
+            loading={loading}
+            emptyState={
+              <div className="flex flex-col items-center gap-3 py-16">
+                <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
+                  <Icon name="chart" size="lg" className="text-violet-400 dark:text-violet-500" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-600 dark:text-dark-300">暂无使用记录</p>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
+                    发起 API 调用后将在此处显示用量明细
+                  </p>
+                </div>
+              </div>
+            }
+          />
         </div>
-      )}
 
-      <div className="card">
-        <DataTable
-          columns={columns}
-          data={logs}
-          loading={loading}
-          emptyState={
-            <div className="flex flex-col items-center gap-3 py-16">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
-                <Icon name="chart" size="xl" className="text-gray-300 dark:text-dark-600" />
-              </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-gray-500 dark:text-dark-400">暂无使用记录</p>
-                <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
-                  发起 API 调用后将在此处显示用量明细
-                </p>
-              </div>
-            </div>
-          }
-        />
-
-        <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-dark-700">
+        <div className="flex items-center justify-between border-t border-gray-100/60 px-6 py-4 dark:border-dark-700/40">
           <span className="text-sm text-gray-500 dark:text-dark-400">
             共 {total.toLocaleString()} 条记录，第 {page + 1}/{totalPages || 1} 页
           </span>

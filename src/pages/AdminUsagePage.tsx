@@ -1,16 +1,23 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
+import { formatUsageLogTime } from '../utils/time';
+import clsx from 'clsx';
 import { usageApi, type UsageLog } from '../api/admin/usage';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { DataTable } from '../components/ui/DataTable';
+import { DatePicker } from '../components/ui/DatePicker';
 import { Icon, type IconName } from '../components/ui/Icon';
 import { useToastStore } from '../stores/toastStore';
 
 type FilterType = 'all' | 'user' | 'key' | 'account';
+type TimePreset = '7d' | '30d' | '90d' | 'custom';
 
-// ---------------------------------------------------------------------------
-// 格式化工具
-// ---------------------------------------------------------------------------
+const PRESETS: { key: TimePreset; label: string }[] = [
+  { key: '7d', label: '近7天' },
+  { key: '30d', label: '近30天' },
+  { key: '90d', label: '近90天' },
+  { key: 'custom', label: '自定义' },
+];
 
 const platformConfig: Record<string, { label: string; color: string }> = {
   ANTHROPIC: { label: 'Anthropic', color: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
@@ -41,30 +48,21 @@ function formatDuration(ms: unknown): string {
   return (v / 1000).toFixed(1) + 's';
 }
 
-function formatTime(val: unknown): string {
-  if (!val) return '—';
-  const d = new Date(String(val));
-  const now = new Date();
-  const diffMs = now.getTime() - d.getTime();
-  const diffMin = Math.floor(diffMs / 60000);
-  const diffHr = Math.floor(diffMs / 3600000);
-
-  let relative: string;
-  if (diffMin < 1) relative = '刚刚';
-  else if (diffMin < 60) relative = `${diffMin}分钟前`;
-  else if (diffHr < 24) relative = `${diffHr}小时前`;
-  else relative = d.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
-
-  const full = d.toLocaleString('zh-CN', {
-    month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', second: '2-digit',
-  });
-  return `${full} (${relative})`;
+function dateToStr(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
 }
 
-// ---------------------------------------------------------------------------
-// 组件
-// ---------------------------------------------------------------------------
+function getPresetRange(preset: TimePreset): { start: string; end: string } {
+  const now = new Date();
+  const end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = preset === '7d' ? 7 : preset === '30d' ? 30 : 90;
+  const start = new Date(end);
+  start.setDate(end.getDate() - days + 1);
+  return { start: dateToStr(start), end: dateToStr(end) };
+}
 
 export default function AdminUsagePage() {
   const [logs, setLogs] = useState<UsageLog[]>([]);
@@ -73,30 +71,56 @@ export default function AdminUsagePage() {
   const [page, setPage] = useState(0);
   const [filterType, setFilterType] = useState<FilterType>('all');
   const [filterId, setFilterId] = useState('');
+  const [exporting, setExporting] = useState(false);
+  const [preset, setPreset] = useState<TimePreset>('30d');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const addToast = useToastStore((s) => s.addToast);
 
   const PAGE_SIZE = 20;
 
+  const dateRange = useMemo(() => {
+    if (preset === 'custom') {
+      return { start: startDate || undefined, end: endDate || undefined };
+    }
+    return getPresetRange(preset);
+  }, [preset, startDate, endDate]);
+
+  const fetchUsagePage = useCallback((p: number, size: number) => {
+    const id = Number(filterId);
+    switch (filterType) {
+      case 'user':
+        return id ? usageApi.byUser(id, p, size, dateRange.start, dateRange.end) : usageApi.list(p, size, dateRange.start, dateRange.end);
+      case 'key':
+        return id ? usageApi.byApiKey(id, p, size, dateRange.start, dateRange.end) : usageApi.list(p, size, dateRange.start, dateRange.end);
+      case 'account':
+        return id ? usageApi.byAccount(id, p, size, dateRange.start, dateRange.end) : usageApi.list(p, size, dateRange.start, dateRange.end);
+      default:
+        return usageApi.list(p, size, dateRange.start, dateRange.end);
+    }
+  }, [filterType, filterId, dateRange]);
+
+  const fetchAllUsageLogs = useCallback(async (size = 500) => {
+    const allLogs: UsageLog[] = [];
+    let p = 0;
+    let totalFromApi = 0;
+
+    while (true) {
+      const res = await fetchUsagePage(p, size);
+      const batch = res.data.logs ?? [];
+      totalFromApi = res.data.total ?? 0;
+      allLogs.push(...batch);
+      if (batch.length < size || allLogs.length >= totalFromApi) break;
+      p++;
+    }
+
+    return allLogs;
+  }, [fetchUsagePage]);
+
   const fetchLogs = useCallback(async () => {
     setLoading(true);
     try {
-      let res;
-      const id = Number(filterId);
-
-      switch (filterType) {
-        case 'user':
-          res = id ? await usageApi.byUser(id, page, PAGE_SIZE) : await usageApi.list(page, PAGE_SIZE);
-          break;
-        case 'key':
-          res = id ? await usageApi.byApiKey(id, page, PAGE_SIZE) : await usageApi.list(page, PAGE_SIZE);
-          break;
-        case 'account':
-          res = id ? await usageApi.byAccount(id, page, PAGE_SIZE) : await usageApi.list(page, PAGE_SIZE);
-          break;
-        default:
-          res = await usageApi.list(page, PAGE_SIZE);
-      }
-
+      const res = await fetchUsagePage(page, PAGE_SIZE);
       setLogs(res.data.logs ?? []);
       setTotal(res.data.total ?? 0);
     } catch {
@@ -104,11 +128,15 @@ export default function AdminUsagePage() {
     } finally {
       setLoading(false);
     }
-  }, [page, filterType, filterId, addToast]);
+  }, [page, fetchUsagePage, addToast]);
 
   useEffect(() => {
     fetchLogs();
   }, [fetchLogs]);
+
+  useEffect(() => {
+    setPage(0);
+  }, [dateRange]);
 
   const handleSearch = () => {
     setPage(0);
@@ -119,29 +147,61 @@ export default function AdminUsagePage() {
     if (e.key === 'Enter') handleSearch();
   };
 
-  // -------------------------------------------------------------------------
-  // 统计摘要 (基于当前页数据)
-  // -------------------------------------------------------------------------
-  const stats = useMemo(() => {
-    if (logs.length === 0) return null;
-    const totalInputTokens = logs.reduce((s, l) => s + (l.inputTokens ?? 0), 0);
-    const totalCacheRead = logs.reduce((s, l) => s + (l.cacheReadTokens ?? 0), 0);
-    const totalOutputTokens = logs.reduce((s, l) => s + (l.outputTokens ?? 0), 0);
-    const totalTokens = totalInputTokens + totalCacheRead + totalOutputTokens;
-    const totalCost = logs.reduce((s, l) => s + (l.totalCost ?? 0), 0);
-    const uniqueUsers = new Set(logs.map((l) => l.userId).filter(Boolean)).size;
-    return { totalInputTokens, totalCacheRead, totalOutputTokens, totalTokens, totalCost, uniqueUsers };
-  }, [logs]);
+  const handleExportCsv = async () => {
+    setExporting(true);
+    try {
+      const allLogs = await fetchAllUsageLogs();
 
-  // -------------------------------------------------------------------------
-  // 表格列定义
-  // -------------------------------------------------------------------------
+      const header = ['时间', '用户ID', 'API Key ID', '模型', '平台', '分组', '计费模式', '输入Token', '缓存读Token', '输出Token', '总Token', '费用(USD)', '倍率', '耗时(ms)', '首字耗时(ms)', 'IP地址'];
+      const rows = allLogs.map((l) => [
+        formatUsageLogTime(l.createdAt) ?? '',
+        l.userId ?? '',
+        l.apiKeyId ?? '',
+        l.model ?? '',
+        l.platform ?? '',
+        l.groupId ?? '',
+        l.billingMode ?? '',
+        l.inputTokens ?? 0,
+        l.cacheReadTokens ?? 0,
+        l.outputTokens ?? 0,
+        (l.inputTokens ?? 0) + (l.outputTokens ?? 0) + (l.cacheReadTokens ?? 0) + (l.cacheCreationTokens ?? 0),
+        (l.totalCost ?? 0).toFixed(6),
+        ((l.rateMultiplier ?? 1) * (l.accountRateMultiplier ?? 1)).toFixed(2),
+        l.durationMs ?? 0,
+        l.firstTokenMs ?? 0,
+        l.ipAddress ?? '',
+      ]);
+
+      const csvContent = [header, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `usage_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      addToast({ type: 'success', message: `已导出 ${allLogs.length} 条记录` });
+    } catch {
+      addToast({ type: 'error', message: '导出失败' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handlePresetChange = (p: TimePreset) => {
+    setPreset(p);
+    if (p !== 'custom') {
+      setStartDate('');
+      setEndDate('');
+    }
+  };
+
   const columns = [
     {
       key: 'createdAt',
       label: '时间',
       className: 'whitespace-nowrap text-xs text-gray-500 dark:text-dark-400',
-      formatter: (val: unknown) => formatTime(val),
+      formatter: (val: unknown) => formatUsageLogTime(val),
     },
     {
       key: 'userId',
@@ -294,9 +354,6 @@ export default function AdminUsagePage() {
     },
   ];
 
-  // -------------------------------------------------------------------------
-  // 筛选器配置
-  // -------------------------------------------------------------------------
   const filterOptions: { value: FilterType; label: string; icon: IconName; placeholder: string }[] = [
     { value: 'all', label: '全部', icon: 'menu', placeholder: '' },
     { value: 'user', label: '用户', icon: 'user', placeholder: '输入用户 ID' },
@@ -306,75 +363,40 @@ export default function AdminUsagePage() {
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  // -------------------------------------------------------------------------
-  // 渲染
-  // -------------------------------------------------------------------------
   return (
     <div className="space-y-4">
-      {/* 统计摘要卡片 */}
-      {stats && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-violet-100 dark:bg-violet-900/30">
-              <Icon name="sparkles" size="sm" className="text-violet-600 dark:text-violet-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">输入令牌</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalInputTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30">
-              <Icon name="inbox" size="sm" className="text-purple-600 dark:text-purple-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">缓存读</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalCacheRead)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-100 dark:bg-indigo-900/30">
-              <Icon name="arrowRight" size="sm" className="text-indigo-600 dark:text-indigo-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">输出令牌</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatTokens(stats.totalOutputTokens)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-rose-100 dark:bg-rose-900/30">
-              <Icon name="dollar" size="sm" className="text-rose-600 dark:text-rose-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">总费用</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {formatCost(stats.totalCost)}
-              </p>
-            </div>
-          </div>
-          <div className="card flex items-center gap-3 px-5 py-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 dark:bg-emerald-900/30">
-              <Icon name="users" size="sm" className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-gray-400 dark:text-dark-400">用户数</p>
-              <p className="text-base font-semibold text-gray-800 dark:text-dark-200 truncate">
-                {stats.uniqueUsers}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* 筛选栏 */}
       <div className="card px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+            {PRESETS.map((p) => (
+              <button
+                key={p.key}
+                onClick={() => handlePresetChange(p.key)}
+                className={clsx(
+                  'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
+                  preset === p.key
+                    ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                    : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
+                )}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {preset === 'custom' && <div className="h-5 w-px bg-gray-200 dark:bg-dark-600" />}
+
+          {preset === 'custom' && (
+            <div className="flex items-center gap-2">
+              <DatePicker value={startDate} onChange={setStartDate} max={endDate || undefined} />
+              <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
+              <DatePicker value={endDate} onChange={setEndDate} min={startDate || undefined} />
+            </div>
+          )}
+
+          <div className="h-5 w-px bg-gray-200 dark:bg-dark-600" />
+
           <div className="flex gap-1 rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
             {filterOptions.map((opt) => (
               <button
@@ -391,6 +413,7 @@ export default function AdminUsagePage() {
               </button>
             ))}
           </div>
+
           {filterType !== 'all' && (
             <div className="flex items-center gap-2">
               <Input
@@ -400,7 +423,7 @@ export default function AdminUsagePage() {
                 onKeyDown={handleKeyDown}
                 className="w-44"
               />
-              <Button onClick={handleSearch}>
+              <Button onClick={handleSearch} size="sm">
                 <Icon name="search" size="sm" />
                 查询
               </Button>
@@ -414,29 +437,38 @@ export default function AdminUsagePage() {
               )}
             </div>
           )}
+
+          <div className="ml-auto">
+            <Button variant="secondary" size="sm" onClick={handleExportCsv} loading={exporting}>
+              <Icon name="download" size="xs" />
+              导出 CSV
+            </Button>
+          </div>
         </div>
       </div>
 
       {/* 表格 */}
-      <div className="card">
-        <DataTable
-          columns={columns}
-          data={logs}
-          loading={loading}
-          emptyState={
-            <div className="flex flex-col items-center gap-3 py-16">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
-                <Icon name="chart" size="xl" className="text-gray-300 dark:text-dark-600" />
+      <div className="card overflow-hidden">
+        <div className="max-h-[60vh] overflow-auto">
+          <DataTable
+            columns={columns}
+            data={logs}
+            loading={loading}
+            emptyState={
+              <div className="flex flex-col items-center gap-3 py-16">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 dark:bg-dark-800">
+                  <Icon name="chart" size="xl" className="text-gray-300 dark:text-dark-600" />
+                </div>
+                <div className="text-center">
+                  <p className="text-sm font-medium text-gray-500 dark:text-dark-400">暂无使用记录</p>
+                  <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
+                    {filterType === 'all' ? 'API 调用记录将在此处显示' : '未找到匹配的用量记录'}
+                  </p>
+                </div>
               </div>
-              <div className="text-center">
-                <p className="text-sm font-medium text-gray-500 dark:text-dark-400">暂无使用记录</p>
-                <p className="mt-1 text-xs text-gray-400 dark:text-dark-500">
-                  {filterType === 'all' ? 'API 调用记录将在此处显示' : '未找到匹配的用量记录'}
-                </p>
-              </div>
-            </div>
-          }
-        />
+            }
+          />
+        </div>
 
         {/* 分页 */}
         <div className="flex items-center justify-between border-t border-gray-100 px-6 py-4 dark:border-dark-700">

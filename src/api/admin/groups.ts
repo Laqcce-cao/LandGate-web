@@ -28,6 +28,9 @@ export interface Group {
   messagesDispatchModelConfig?: string;
   rpmLimit?: number;
   excludedModels?: string;
+  provider?: string;
+  supportedProtocols?: string;
+  protocolStrategy?: string;
   createdAt?: string;
   updatedAt?: string;
   deletedAt?: string;
@@ -64,6 +67,7 @@ export interface UserAllowedGroupListResponse {
 export const groupsApi = {
   list: () => client.get<GroupListResponse>('/admin/groups'),
   getById: (id: number) => client.get<Group>(`/admin/groups/${id}`),
+  getSupportedModels: (id: number) => client.get<{ supportedModels: string }>(`/admin/groups/${id}/supported-models`),
   create: (data: Partial<Group>) => client.post<Group>('/admin/groups', data),
   update: (id: number, data: Partial<Group>) => client.put<Group>(`/admin/groups/${id}`, data),
   delete: (id: number) => client.delete(`/admin/groups/${id}`),

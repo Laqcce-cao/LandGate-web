@@ -30,4 +30,6 @@ export const usersApi = {
   update: (id: number, data: Partial<User>) => client.put<User>(`/admin/users/${id}`, data),
   updateStatus: (id: number, status: string) =>
     client.post(`/admin/users/${id}/status`, { status }),
+  recharge: (id: number, amount: number) =>
+    client.post<User>(`/admin/users/${id}/recharge`, { amount }),
 };

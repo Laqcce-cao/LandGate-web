@@ -3,7 +3,6 @@ import client from '../client';
 export interface ModelPrice {
   id: number;
   model: string;
-  platform: string;
   inputPrice?: number;
   outputPrice?: number;
   cacheWritePrice?: number;
@@ -13,6 +12,9 @@ export interface ModelPrice {
   supportsCacheBreakdown?: boolean;
   enabled?: boolean;
   notes?: string;
+  billingMode?: string;
+  wildcardMatch?: boolean;
+  imageSize?: string;
   createdAt?: string;
   updatedAt?: string;
 }
