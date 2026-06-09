@@ -167,7 +167,6 @@ export default function UsersPage() {
         username: username.trim(),
         role,
         status: statusForm,
-        balance: Number(balance) || 0,
         concurrency: Number(concurrency) || 1,
         rpmLimit: Number(rpmLimit) || 0,
         notes: notes.trim(),
@@ -541,10 +540,10 @@ export default function UsersPage() {
             </legend>
             <div className="mt-1 grid grid-cols-3 gap-3">
               <Input
-                label="余额 (USD)"
-                type="number"
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
+                label="当前余额 (USD)"
+                value={`$${Number(balance || 0).toFixed(2)}`}
+                readOnly
+                hint="余额请通过“余额调整”操作变更"
               />
               <Input
                 label="并发上限"
