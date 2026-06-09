@@ -12,6 +12,7 @@ import { Toggle } from '../../components/ui/Toggle';
 import { useToastStore } from '../../stores/toastStore';
 import {
   buildCcSwitchImportDeeplink,
+  CLAUDE_CC_SWITCH_MODEL,
   OPENAI_CC_SWITCH_CODEX_MODEL,
   type CcSwitchApp,
 } from '../../utils/ccswitchImport';
@@ -72,6 +73,8 @@ const CLAUDE_CODE_API_BASE_URL = 'https://laqcce-cao.com';
 
 function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => void; apiKey: AdminApiKey | null }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [codexModel, setCodexModel] = useState(OPENAI_CC_SWITCH_CODEX_MODEL);
+  const [claudeModel, setClaudeModel] = useState(CLAUDE_CC_SWITCH_MODEL);
   const addToast = useToastStore((s) => s.addToast);
 
   if (!apiKey) return null;
@@ -108,9 +111,9 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
     </div>
   );
 
-  const usageScript = `({
+  const buildUsageScript = (usagePath: string) => `({
     request: {
-      url: "{{baseUrl}}/v1/usage",
+      url: "{{baseUrl}}${usagePath}",
       method: "GET",
       headers: { "Authorization": "Bearer {{apiKey}}" }
     },
@@ -133,8 +136,10 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
       homepage: claudeCodeBaseUrl,
       providerName: 'LandGate',
       apiKey: apiKey.key,
-      model: app === 'codex' ? OPENAI_CC_SWITCH_CODEX_MODEL : undefined,
-      usageScript,
+      model: app === 'codex'
+        ? (codexModel.trim() || OPENAI_CC_SWITCH_CODEX_MODEL)
+        : (claudeModel.trim() || CLAUDE_CC_SWITCH_MODEL),
+      usageScript: buildUsageScript(app === 'codex' ? '/usage' : '/v1/usage'),
     });
 
     try {
@@ -163,6 +168,20 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
                 自动写入 Provider、Endpoint 和 API Key，无需手动复制环境变量。
               </p>
             </div>
+          </div>
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Claude 默认模型"
+              value={claudeModel}
+              onChange={(e) => setClaudeModel(e.target.value)}
+              placeholder={CLAUDE_CC_SWITCH_MODEL}
+            />
+            <Input
+              label="Codex 默认模型"
+              value={codexModel}
+              onChange={(e) => setCodexModel(e.target.value)}
+              placeholder={OPENAI_CC_SWITCH_CODEX_MODEL}
+            />
           </div>
           <div className="flex flex-wrap gap-2">
             <Button variant="secondary" size="sm" onClick={() => handleCcSwitchImport('claude')}>
