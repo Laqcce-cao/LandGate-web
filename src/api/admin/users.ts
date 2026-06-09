@@ -39,6 +39,4 @@ export const usersApi = {
     client.post(`/admin/users/${id}/status`, { status }),
   adjustBalance: (id: number, data: BalanceAdjustmentRequest) =>
     client.post<{ user: User; transaction: unknown }>(`/admin/users/${id}/balance-adjustments`, data),
-  recharge: (id: number, amount: number) =>
-    client.post<User>(`/admin/users/${id}/recharge`, { amount }),
 };
