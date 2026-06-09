@@ -6,6 +6,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard': '仪表盘',
   '/api-keys': 'API Keys',
   '/usage': '用量统计',
+  '/recharge-records': '充值记录',
   '/redeem': '兑换码',
   '/profile': '个人中心',
   '/admin/dashboard': '仪表盘',
