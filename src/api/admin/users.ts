@@ -23,6 +23,13 @@ export interface UserListResponse {
   total: number;
 }
 
+export interface BalanceAdjustmentRequest {
+  kind: 'PAID' | 'GIFT' | 'DEDUCT';
+  amount: number;
+  cashIncomeAmount?: number;
+  remark: string;
+}
+
 export const usersApi = {
   list: (params?: { page?: number; pageSize?: number; search?: string }) =>
     client.get<UserListResponse>('/admin/users', { params }),
@@ -30,6 +37,8 @@ export const usersApi = {
   update: (id: number, data: Partial<User>) => client.put<User>(`/admin/users/${id}`, data),
   updateStatus: (id: number, status: string) =>
     client.post(`/admin/users/${id}/status`, { status }),
+  adjustBalance: (id: number, data: BalanceAdjustmentRequest) =>
+    client.post<{ user: User; transaction: unknown }>(`/admin/users/${id}/balance-adjustments`, data),
   recharge: (id: number, amount: number) =>
     client.post<User>(`/admin/users/${id}/recharge`, { amount }),
 };

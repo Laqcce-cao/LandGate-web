@@ -12,7 +12,7 @@ import AccountsPage from '../pages/AccountsPage';
 import OAuthCallbackPage from '../pages/OAuthCallbackPage';
 import GroupsPage from '../pages/GroupsPage';
 import UsagePage from '../pages/UsagePage';
-import RechargeRecordsPage from '../pages/RechargeRecordsPage';
+import BalanceTransactionsPage from '../pages/BalanceTransactionsPage';
 import AdminUsagePage from '../pages/AdminUsagePage';
 import ModelPricesPage from '../pages/ModelPricesPage';
 import UsersPage from '../pages/admin/UsersPage';
@@ -92,7 +92,7 @@ export default function AppRouter() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/api-keys" element={<ApiKeysPage />} />
             <Route path="/usage" element={<UsagePage />} />
-            <Route path="/recharge-records" element={<RechargeRecordsPage />} />
+            <Route path="/balance-transactions" element={<BalanceTransactionsPage />} />
             <Route path="/profile" element={<ProfilePage />} />
           </Route>
         </Route>

@@ -8,7 +8,7 @@ const userNavItems = [
   { path: '/dashboard', label: '仪表盘', icon: 'grid' as const },
   { path: '/api-keys', label: 'API Keys', icon: 'key' as const },
   { path: '/usage', label: '用量统计', icon: 'chartBar' as const },
-  { path: '/recharge-records', label: '充值记录', icon: 'dollar' as const },
+  { path: '/balance-transactions', label: '余额明细', icon: 'dollar' as const },
   { path: '/profile', label: '个人中心', icon: 'user' as const },
 ];
 

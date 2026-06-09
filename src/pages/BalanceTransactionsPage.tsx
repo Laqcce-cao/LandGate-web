@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { paymentApi, type RechargeRecord } from '../api/payment';
+import { balanceApi, type BalanceTransaction } from '../api/balance';
 import { Badge } from '../components/ui/Badge';
 import { Button } from '../components/ui/Button';
 import { DataTable } from '../components/ui/DataTable';
@@ -11,7 +11,20 @@ import { useToastStore } from '../stores/toastStore';
 const PAGE_SIZE = 20;
 
 function formatAmount(value: unknown): string {
-  return `$${Number(value ?? 0).toFixed(2)}`;
+  const amount = Number(value ?? 0);
+  const sign = amount > 0 ? '+' : '';
+  return `${sign}$${amount.toFixed(2)}`;
+}
+
+function amountClass(value: unknown): string {
+  const amount = Number(value ?? 0);
+  if (amount < 0) return 'font-semibold text-red-600 dark:text-red-400';
+  return 'font-semibold text-emerald-600 dark:text-emerald-400';
+}
+
+function formatBalance(value: unknown): string {
+  if (value == null) return '—';
+  return `$${Number(value).toFixed(2)}`;
 }
 
 function formatTime(value?: string): string {
@@ -21,31 +34,28 @@ function formatTime(value?: string): string {
   return date.toLocaleString('zh-CN');
 }
 
-function paymentTypeLabel(type?: string): string {
+function transactionTypeLabel(type?: string): string {
   const normalized = type?.toUpperCase();
-  if (normalized === 'MANUAL') return '管理员充值';
-  if (normalized === 'ALIPAY') return '支付宝';
-  if (normalized === 'WXPAY') return '微信支付';
-  if (normalized === 'STRIPE') return 'Stripe';
-  if (normalized === 'EASYPAY') return 'EasyPay';
-  if (normalized === 'AIRWALLEX') return 'Airwallex';
+  if (normalized === 'RECHARGE') return '在线充值';
+  if (normalized === 'ADMIN_RECHARGE') return '线下充值';
+  if (normalized === 'ADMIN_GRANT') return '赠送补偿';
+  if (normalized === 'CHECKIN_REWARD') return '签到奖励';
+  if (normalized === 'REFUND') return '退款返还';
+  if (normalized === 'ADMIN_DEDUCT') return '管理员扣减';
+  if (normalized === 'ADJUSTMENT') return '系统调整';
   return type || '—';
 }
 
 function statusLabel(status?: string): string {
   const normalized = status?.toUpperCase();
-  if (normalized === 'COMPLETED') return '已到账';
-  if (normalized === 'PAID') return '已支付';
-  if (normalized === 'PENDING') return '待支付';
-  if (normalized === 'REFUNDING') return '退款中';
-  if (normalized === 'REFUNDED') return '已退款';
-  if (normalized === 'EXPIRED') return '已过期';
-  if (normalized === 'CANCELLED') return '已取消';
+  if (normalized === 'COMPLETED') return '已完成';
+  if (normalized === 'PENDING') return '处理中';
+  if (normalized === 'FAILED') return '失败';
   return status || '—';
 }
 
-export default function RechargeRecordsPage() {
-  const [records, setRecords] = useState<RechargeRecord[]>([]);
+export default function BalanceTransactionsPage() {
+  const [records, setRecords] = useState<BalanceTransaction[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -54,11 +64,11 @@ export default function RechargeRecordsPage() {
   const fetchRecords = useCallback(async () => {
     setLoading(true);
     try {
-      const { data } = await paymentApi.listRechargeRecords({ page, size: PAGE_SIZE });
+      const { data } = await balanceApi.listTransactions({ page, size: PAGE_SIZE });
       setRecords(data.items ?? []);
       setTotal(data.total ?? 0);
     } catch {
-      addToast({ type: 'error', message: '加载充值记录失败' });
+      addToast({ type: 'error', message: '加载余额明细失败' });
     } finally {
       setLoading(false);
     }
@@ -72,28 +82,32 @@ export default function RechargeRecordsPage() {
     {
       key: 'createdAt',
       label: '时间',
-      formatter: (_: unknown, row: RechargeRecord) => formatTime(row.completedAt || row.paidAt || row.createdAt),
+      formatter: (_: unknown, row: BalanceTransaction) => formatTime(row.completedAt || row.createdAt),
+    },
+    {
+      key: 'transactionType',
+      label: '类型',
+      formatter: (value: unknown) => <Badge variant="gray">{transactionTypeLabel(String(value || ''))}</Badge>,
     },
     {
       key: 'amount',
-      label: '金额',
-      formatter: formatAmount,
-      className: 'font-semibold text-emerald-600 dark:text-emerald-400',
+      label: '变动金额',
+      formatter: (value: unknown) => <span className={amountClass(value)}>{formatAmount(value)}</span>,
     },
     {
-      key: 'paymentType',
-      label: '类型',
-      formatter: (value: unknown) => <Badge variant="gray">{paymentTypeLabel(String(value || ''))}</Badge>,
+      key: 'balanceAfter',
+      label: '变动后余额',
+      formatter: formatBalance,
+    },
+    {
+      key: 'remark',
+      label: '备注',
+      formatter: (value: unknown) => String(value || '—'),
     },
     {
       key: 'status',
       label: '状态',
       formatter: (value: unknown) => <StatusBadge status={String(value || 'PENDING')} label={statusLabel(String(value || ''))} />,
-    },
-    {
-      key: 'outTradeNo',
-      label: '订单号',
-      formatter: (value: unknown) => <span className="font-mono text-xs">{String(value || '—')}</span>,
     },
   ];
 
@@ -107,9 +121,9 @@ export default function RechargeRecordsPage() {
             <Icon name="dollar" size="md" />
           </div>
           <div>
-            <h2 className="text-base font-semibold text-gray-900 dark:text-white">充值记录</h2>
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">余额明细</h2>
             <p className="mt-1 text-sm text-gray-600 dark:text-dark-400">
-              查看你的余额充值订单，包括在线充值和管理员手动充值到账记录。
+              查看你的低频余额变动来源，包括充值到账、赠送补偿、签到奖励、退款返还和余额调整。
             </p>
           </div>
         </div>
@@ -123,8 +137,8 @@ export default function RechargeRecordsPage() {
           emptyState={
             <EmptyState
               icon={<Icon name="dollar" size="xl" />}
-              title="暂无充值记录"
-              description="充值到账后会在这里展示记录。"
+              title="暂无余额明细"
+              description="余额发生充值、赠送或调整后会在这里展示。"
             />
           }
         />
