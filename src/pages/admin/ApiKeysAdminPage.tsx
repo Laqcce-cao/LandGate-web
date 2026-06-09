@@ -139,7 +139,7 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
       model: app === 'codex'
         ? (codexModel.trim() || OPENAI_CC_SWITCH_CODEX_MODEL)
         : (claudeModel.trim() || CLAUDE_CC_SWITCH_MODEL),
-      usageScript: buildUsageScript(app === 'codex' ? '/usage' : '/v1/usage'),
+      usageScript: buildUsageScript('/v1/usage'),
     });
 
     try {

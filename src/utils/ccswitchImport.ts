@@ -32,7 +32,7 @@ export function buildCcSwitchImportDeeplink(input: CcSwitchImportDeeplinkInput):
     entries.push(
       ['usageEnabled', 'true'],
       ['usageScript', btoa(input.usageScript)],
-      ['usageAutoInterval', '30']
+      ['usageAutoInterval', '5']
     );
   }
 

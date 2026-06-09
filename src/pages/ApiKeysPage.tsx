@@ -77,6 +77,7 @@ const statusConfig: Record<string, { label: string; cls: string }> = {
 
 const CODEX_API_BASE_URL = 'https://laqcce-cao.com/v1';
 const CLAUDE_CODE_API_BASE_URL = 'https://laqcce-cao.com';
+const CC_SWITCH_USAGE_URL = 'https://laqcce-cao.com/v1/usage';
 
 /* ── Use Key Modal ── */
 
@@ -120,11 +121,14 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
     </div>
   );
 
-  const buildUsageScript = (usagePath: string) => `({
+  const buildUsageScript = () => `({
     request: {
-      url: "{{baseUrl}}${usagePath}",
+      url: "${CC_SWITCH_USAGE_URL}",
       method: "GET",
-      headers: { "Authorization": "Bearer {{apiKey}}" }
+      headers: {
+        "Authorization": "Bearer {{apiKey}}",
+        "x-api-key": "{{apiKey}}"
+      }
     },
     extractor: function(response) {
       const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
@@ -148,7 +152,7 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
       model: app === 'codex'
         ? (codexModel.trim() || OPENAI_CC_SWITCH_CODEX_MODEL)
         : (claudeModel.trim() || CLAUDE_CC_SWITCH_MODEL),
-      usageScript: buildUsageScript(app === 'codex' ? '/usage' : '/v1/usage'),
+      usageScript: buildUsageScript(),
     });
 
     try {
@@ -157,7 +161,7 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
         if (document.hasFocus()) {
           addToast({ type: 'error', message: '未检测到 cc switch，请先安装后重试' });
         }
-      }, 100);
+      }, 1500);
     } catch {
       addToast({ type: 'error', message: '未检测到 cc switch，请先安装后重试' });
     }
