@@ -65,7 +65,7 @@ const PRESETS: { key: PresetKey; label: string; days?: number }[] = [
   { key: 'custom', label: '自定义' },
 ];
 
-function TimeRangeBar({ preset, onStartChange, onEndChange, onPresetChange, start, end }: {
+function ChartSectionHeader({ preset, onStartChange, onEndChange, onPresetChange, start, end }: {
   preset: PresetKey;
   start: string;
   end: string;
@@ -76,36 +76,35 @@ function TimeRangeBar({ preset, onStartChange, onEndChange, onPresetChange, star
   const isCustom = preset === 'custom';
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
-      {/* Preset tabs */}
-      <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
-        {PRESETS.map((p) => (
-          <button
-            key={p.key}
-            className={clsx(
-              'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
-              preset === p.key
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
-                : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
-            )}
-            onClick={() => onPresetChange(p.key)}
-          >
-            {p.label}
-          </button>
-        ))}
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+      <div>
+        <h3 className="text-sm font-semibold text-slate-700 dark:text-dark-200">用量分析</h3>
+        <p className="mt-1 text-xs text-slate-400 dark:text-dark-500">模型分布与 Token 趋势共用同一时间范围</p>
       </div>
-
-      {/* Divider */}
-      {isCustom && <div className="h-5 w-px bg-gray-200 dark:bg-dark-600" />}
-
-      {/* Custom date range */}
-      <div className={clsx(
-        'flex items-center gap-2 transition-all',
-        isCustom ? 'opacity-100' : 'pointer-events-none h-0 overflow-hidden opacity-0'
-      )}>
-        <DatePicker value={start} onChange={onStartChange} max={end} />
-        <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
-        <DatePicker value={end} onChange={onEndChange} min={start} max={todayStr()} />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex rounded-xl border border-slate-200/80 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
+          {PRESETS.map((p) => (
+            <button
+              key={p.key}
+              className={clsx(
+                'rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
+                preset === p.key
+                  ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
+                  : 'text-slate-500 hover:text-slate-800 dark:text-dark-400 dark:hover:text-dark-200'
+              )}
+              onClick={() => onPresetChange(p.key)}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+        {isCustom && (
+          <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 py-1 shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
+            <DatePicker value={start} onChange={onStartChange} max={end} />
+            <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
+            <DatePicker value={end} onChange={onEndChange} min={start} max={todayStr()} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -181,14 +180,15 @@ function DashboardStatCard({ icon, color, label, value, subtext }: {
   const c = COLOR_MAP[color];
   return (
     <div className={clsx(
-      'group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-4 transition-all duration-300',
-      'hover:shadow-lg dark:border-dark-700/50 dark:bg-dark-800',
+      'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_20px_rgba(51,65,85,0.07)] transition-all duration-300',
+      'hover:-translate-y-0.5 hover:shadow-xl dark:border-white/10 dark:bg-white/[0.055]',
       c.glow,
     )}>
       {/* Gradient overlay */}
       <div className={clsx('pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100', c.gradient)} />
+      <div className="pointer-events-none absolute -right-8 -top-12 h-24 w-24 rotate-12 rounded-[2rem] border border-slate-900/[0.04] bg-white/35 transition-transform duration-500 group-hover:translate-y-3 group-hover:rotate-45 dark:border-white/10 dark:bg-white/[0.04]" />
       <div className="relative flex items-center gap-3">
-        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-sm', c.iconBg)}>
+        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl shadow-sm', c.iconBg)}>
           <Icon name={icon} size="md" className="text-white" />
         </div>
         <div>
@@ -238,7 +238,8 @@ function ModelDistributionCard({ data, loading, isDark }: {
   }, [sorted]);
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_20px_rgba(51,65,85,0.07)] dark:border-white/10 dark:bg-white/[0.055]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-teal-400/60 to-transparent" />
       <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">模型分布</h3>
       {loading ? (
         <div className="flex h-64 items-center justify-center">
@@ -358,7 +359,8 @@ function TokenTrendCard({ data, loading, isDark }: {
     : { input: '#3b82f6', output: '#10b981', cache: '#06b6d4' };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_20px_rgba(51,65,85,0.07)] dark:border-white/10 dark:bg-white/[0.055]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/60 to-transparent" />
       <h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-white">Token 用量趋势</h3>
       <p className="mb-4 text-xs text-gray-400 dark:text-dark-500">
         {loading || data.length === 0
@@ -478,7 +480,12 @@ export default function DashboardPage() {
     }
   }, [addToast]);
 
-  useEffect(() => { fetchCharts(timeParams); }, [timeParams, fetchCharts]);
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void fetchCharts(timeParams);
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [timeParams, fetchCharts]);
 
   const handlePresetChange = useCallback((key: PresetKey) => {
     setPreset(key);
@@ -492,14 +499,13 @@ export default function DashboardPage() {
   }, []);
 
   return (
-    <div className="space-y-4">
-      {/* Row 1: Core Stats */}
+    <div className="space-y-5">
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <DashboardStatCard
           icon="dollar"
           color="emerald"
           label="当前余额"
-          value={balance != null ? `⚡${balance.toFixed(2)}` : '...'}
+          value={balance != null ? `$${balance.toFixed(2)}` : '...'}
         />
         <DashboardStatCard
           icon="sparkles"
@@ -524,7 +530,6 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Row 2: Performance Stats */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <DashboardStatCard
           icon="trendingUp"
@@ -552,15 +557,14 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Time Range Selector */}
-      <TimeRangeBar
-        preset={preset}
-        start={customStart}
-        end={customEnd}
-        onPresetChange={handlePresetChange}
-        onStartChange={setCustomStart}
-        onEndChange={setCustomEnd}
-      />
+      <ChartSectionHeader
+          preset={preset}
+          start={customStart}
+          end={customEnd}
+          onPresetChange={handlePresetChange}
+          onStartChange={setCustomStart}
+          onEndChange={setCustomEnd}
+        />
 
       {/* Row 3: Charts */}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">

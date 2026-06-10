@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { Header } from './Header';
+import { AmbientScene } from './AmbientScene';
 
 export function AppLayout() {
   const [collapsed, setCollapsed] = useState(false);
@@ -9,9 +10,8 @@ export function AppLayout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-dark-950">
-      {/* Mesh gradient background */}
-      <div className="pointer-events-none fixed inset-0 bg-mesh-gradient" />
+    <div className="relative min-h-screen overflow-x-hidden bg-[#EAF5FF] dark:bg-dark-950">
+      <AmbientScene />
 
       <Sidebar
         collapsed={collapsed}
@@ -21,19 +21,14 @@ export function AppLayout() {
       />
 
       <div
-        className="transition-all duration-300"
-        style={{
-          marginLeft: typeof window !== 'undefined' && window.innerWidth >= 1024
-            ? collapsed ? '64px' : '224px'
-            : 0,
-        }}
+        className={collapsed ? 'relative z-10 transition-all duration-300 lg:ml-16' : 'relative z-10 transition-all duration-300 lg:ml-56'}
       >
         <Header
           onMenuClick={() => setMobileOpen(true)}
           pathname={location.pathname}
         />
-        <main className="p-4 md:p-6 lg:p-8 relative">
-          <div className="animate-fade-in">
+        <main className="relative p-4 md:p-6 lg:p-8">
+          <div className="mx-auto w-full max-w-[1480px] animate-fade-in">
             <Outlet />
           </div>
         </main>

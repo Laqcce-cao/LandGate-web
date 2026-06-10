@@ -45,7 +45,7 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
       {/* Mobile overlay */}
       {mobileOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
+          className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-sm lg:hidden"
           onClick={onMobileClose}
         />
       )}
@@ -59,13 +59,14 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
       >
         {/* Brand */}
         <div className={clsx('sidebar-header', collapsed && 'justify-center px-0')}>
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 shadow-md shadow-violet-500/20">
-            <span className="text-sm font-bold text-white">LG</span>
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 via-violet-400 to-pink-400 shadow-lg shadow-pink-400/20">
+            <span className="absolute inset-[3px] rounded-[14px] border border-white/35" />
+            <span className="relative text-sm font-bold text-white">LG</span>
           </div>
           {!collapsed && (
-            <div>
-              <span className="text-base font-bold tracking-tight text-gray-900 dark:text-white">LandGate</span>
-              <p className="text-[11px] text-gray-400 dark:text-dark-500">{isAdmin ? '管理后台' : '用户中心'}</p>
+            <div className="min-w-0">
+              <span className="block text-base font-bold tracking-tight text-gray-950 dark:text-white">LandGate</span>
+              <p className="text-[11px] font-medium text-slate-400 dark:text-dark-400">{isAdmin ? '管理控制台' : '用量控制台'}</p>
             </div>
           )}
         </div>
@@ -149,13 +150,14 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
 
         {/* Bottom: balance + actions */}
         <div className={clsx(
-          'border-t border-gray-100/60 px-3 py-3 dark:border-dark-800/40',
+          'border-t border-white/70 px-3 py-3 dark:border-white/10',
           collapsed && 'px-1.5'
         )}>
           {user?.balance != null && !collapsed && (
-            <div className="mb-2 overflow-hidden rounded-xl bg-gradient-to-br from-violet-50 to-indigo-50 p-3 text-center dark:from-violet-900/20 dark:to-indigo-900/20">
-              <span className="text-[10px] font-medium uppercase tracking-wider text-violet-500 dark:text-violet-400">余额</span>
-              <p className="text-lg font-bold tracking-tight text-violet-700 dark:text-violet-300">
+            <div className="relative mb-2 overflow-hidden rounded-2xl border border-slate-200/80 bg-sky-50 p-3 text-center shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
+              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pink-300/80 to-transparent" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-300">余额</span>
+              <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
                 ${(Math.floor(Number(user.balance) * 100) / 100).toFixed(2)}
               </p>
             </div>
