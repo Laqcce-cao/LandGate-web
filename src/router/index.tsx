@@ -18,6 +18,7 @@ import AdminUsagePage from '../pages/AdminUsagePage';
 import ModelPricesPage from '../pages/ModelPricesPage';
 import UsersPage from '../pages/admin/UsersPage';
 import ApiKeysAdminPage from '../pages/admin/ApiKeysAdminPage';
+import BalanceTransactionsAdminPage from '../pages/admin/BalanceTransactionsAdminPage';
 import ProfilePage from '../pages/ProfilePage';
 
 function AuthGuard() {
@@ -109,6 +110,7 @@ export default function AppRouter() {
             <Route path="/admin/usage" element={<AdminUsagePage />} />
             <Route path="/admin/model-prices" element={<ModelPricesPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/balance-transactions" element={<BalanceTransactionsAdminPage />} />
             <Route path="/admin/api-keys" element={<ApiKeysAdminPage />} />
           </Route>
         </Route>

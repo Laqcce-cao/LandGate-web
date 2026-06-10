@@ -20,6 +20,7 @@ const adminNavItems = [
   { path: '/admin/model-prices', label: '模型价格', icon: 'dollar' as const },
   { path: '/admin/usage', label: '用量计费', icon: 'chartBar' as const },
   { path: '/admin/users', label: '用户管理', icon: 'userCircle' as const },
+  { path: '/admin/balance-transactions', label: '余额流水', icon: 'dollar' as const },
   { path: '/admin/api-keys', label: 'API密钥', icon: 'key' as const },
 ];
 

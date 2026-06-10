@@ -19,6 +19,7 @@ const pageTitles: Record<string, string> = {
   '/admin/marketing': '营销管理',
   '/admin/model-prices': '模型价格',
   '/admin/users': '用户管理',
+  '/admin/balance-transactions': '余额流水',
   '/admin/api-keys': 'API密钥',
 };
 
@@ -42,7 +43,7 @@ export function Header({ onMenuClick, pathname }: HeaderProps) {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  const pageTitle = pageTitles[pathname.split('/').slice(0, 2).join('/')] ?? 'LandGate';
+  const pageTitle = pageTitles[pathname] ?? pageTitles[`/${pathname.split('/')[1]}/${pathname.split('/')[2]}`] ?? 'LandGate';
 
   return (
     <header className="glass sticky top-0 z-30 border-b border-gray-200/50 dark:border-dark-700/50">
