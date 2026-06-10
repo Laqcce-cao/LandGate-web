@@ -6,6 +6,7 @@ import { EmptyState } from '../components/ui/EmptyState';
 import { Icon } from '../components/ui/Icon';
 import { StatusBadge } from '../components/ui/StatusBadge';
 import { checkinApi, type CheckinRecord, type CheckinStatusResponse } from '../api/checkin';
+import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 
 const PAGE_SIZE = 10;
@@ -45,6 +46,7 @@ export default function CheckinPage() {
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
+  const fetchUser = useAuthStore((s) => s.fetchUser);
   const addToast = useToastStore((s) => s.addToast);
 
   const fetchStatus = useCallback(async () => {
@@ -84,7 +86,7 @@ export default function CheckinPage() {
           ? '今日已签到'
           : `签到成功，获得 ${formatAmount(data.record.rewardAmount)}`,
       });
-      await Promise.all([fetchStatus(), fetchRecords()]);
+      await Promise.all([fetchStatus(), fetchRecords(), fetchUser()]);
     } catch {
       addToast({ type: 'error', message: '签到失败，请稍后重试' });
       fetchStatus().catch(() => undefined);
