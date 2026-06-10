@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
   const handleSendCode = async () => {
     setError('');
     setMessage('');
-    const normalizedEmail = email.trim();
+    const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       setError('请输入邮箱');
       return;
@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
     setError('');
     setMessage('');
 
-    const normalizedEmail = email.trim();
+    const normalizedEmail = email.trim().toLowerCase();
     if (!normalizedEmail) {
       setError('请输入邮箱');
       return;

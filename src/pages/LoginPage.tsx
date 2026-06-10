@@ -21,13 +21,14 @@ export default function LoginPage() {
     setEmailError('');
     setNeedsVerification(false);
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setEmailError('请输入邮箱');
       return;
     }
 
     try {
-      const redirectTo = await login(email, password);
+      const redirectTo = await login(normalizedEmail, password);
       navigate(redirectTo);
     } catch (err: unknown) {
       const msg =
@@ -54,7 +55,7 @@ export default function LoginPage() {
             邮箱尚未验证，请检查收件箱中的验证邮件。
             <br />
             <Link
-              to={`/verify-email?email=${encodeURIComponent(email)}`}
+              to={`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`}
               className="font-medium text-violet-600 hover:text-violet-700 underline"
             >
               前往验证邮箱 →

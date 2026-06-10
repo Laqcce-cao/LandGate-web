@@ -21,7 +21,8 @@ export default function RegisterPage() {
     e.preventDefault();
     setError('');
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setError('请输入邮箱');
       return;
     }
@@ -43,7 +44,7 @@ export default function RegisterPage() {
 
     try {
       const registeredEmail = await register(
-        email,
+        normalizedEmail,
         password,
         'captcha_disabled',
         username.trim() || undefined,
