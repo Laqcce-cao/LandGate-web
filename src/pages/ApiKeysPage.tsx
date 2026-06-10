@@ -336,7 +336,7 @@ function GroupDetailPanel({ group }: { group: Group }) {
   const isWildcard = supportedModels?.includes('*');
 
   return (
-    <div className="mt-2 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 dark:border-violet-800/50 dark:from-violet-900/10 dark:to-indigo-900/10">
+    <div className="mt-2 rounded-xl border border-violet-200 bg-gradient-to-br from-violet-50 to-indigo-50 p-4 dark:border-white/10 dark:from-white/[0.055] dark:to-white/[0.055]">
       <div className="mb-3 flex items-center gap-2">
         <div className="flex h-6 w-6 items-center justify-center rounded-md bg-violet-500">
           <Icon name="check" size="xs" className="text-white" />
@@ -352,24 +352,24 @@ function GroupDetailPanel({ group }: { group: Group }) {
       )}
 
       <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
-        <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-dark-800/50">
+        <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-white/[0.055]">
           <p className="text-[10px] text-gray-400 dark:text-dark-500">倍率</p>
           <p className="text-sm font-semibold text-gray-800 dark:text-dark-200">{rateMultiplier.toFixed(2)}x</p>
         </div>
         {group.rpmLimit != null && group.rpmLimit > 0 && (
-          <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-dark-800/50">
+          <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-white/[0.055]">
             <p className="text-[10px] text-gray-400 dark:text-dark-500">RPM 限制</p>
             <p className="text-sm font-semibold text-gray-800 dark:text-dark-200">{group.rpmLimit}</p>
           </div>
         )}
         {group.dailyLimitUsd != null && Number(group.dailyLimitUsd) > 0 && (
-          <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-dark-800/50">
+          <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-white/[0.055]">
             <p className="text-[10px] text-gray-400 dark:text-dark-500">日限额</p>
             <p className="text-sm font-semibold text-gray-800 dark:text-dark-200">${Number(group.dailyLimitUsd).toFixed(0)}</p>
           </div>
         )}
         {group.allowImageGeneration && (
-          <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-dark-800/50">
+          <div className="rounded-lg bg-white/70 px-3 py-2 dark:bg-white/[0.055]">
             <p className="text-[10px] text-gray-400 dark:text-dark-500">图片倍率</p>
             <p className="text-sm font-semibold text-gray-800 dark:text-dark-200">{imageRateMultiplier.toFixed(2)}x</p>
           </div>
@@ -912,7 +912,7 @@ export default function ApiKeysPage() {
           <LoadingSpinner size="lg" />
         </div>
       ) : keys.length === 0 ? (
-        <div className="flex flex-col items-center gap-4 rounded-2xl border border-gray-100/80 bg-white py-20 dark:border-dark-700/50 dark:bg-dark-800">
+        <div className="flex flex-col items-center gap-4 rounded-2xl border border-gray-100/80 bg-white py-20 dark:border-white/10 dark:bg-white/[0.055]">
           <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-100 to-indigo-100 dark:from-violet-900/20 dark:to-indigo-900/20">
             <Icon name="key" size="xl" className="text-violet-400 dark:text-violet-500" />
           </div>
@@ -928,7 +928,7 @@ export default function ApiKeysPage() {
           </Button>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
+        <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-white/10 dark:bg-white/[0.055]">
           <div className="overflow-x-auto">
           <table className="w-full min-w-[1100px]">
             <thead>

@@ -93,7 +93,7 @@ export default function ProfilePage() {
   return (
     <div className="mx-auto max-w-xl">
       {/* User Info Bar */}
-      <div className="mb-4 flex items-center gap-4 overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="mb-4 flex items-center gap-4 overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-white/10 dark:bg-white/[0.055]">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-violet-500 to-indigo-600 text-lg font-bold text-white shadow-lg shadow-violet-500/20">
           {initial}
         </div>
@@ -113,7 +113,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Change Nickname */}
-      <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="mb-4 overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-white/10 dark:bg-white/[0.055]">
         <SectionHeader title="修改昵称" />
         <form onSubmit={handleNicknameSubmit} className="flex gap-3">
           <input
@@ -131,7 +131,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Change Password */}
-      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-white/10 dark:bg-white/[0.055]">
         <SectionHeader title="修改密码" />
         <form onSubmit={handlePasswordSubmit} className="space-y-4">
           <div>
