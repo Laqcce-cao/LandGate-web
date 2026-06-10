@@ -6,6 +6,10 @@ function isAdminRole(role: string): boolean {
   return r === 'admin' || r === 'super_admin';
 }
 
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 interface AuthState {
   user: User | null;
   token: string | null;
@@ -57,7 +61,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   login: async (email: string, password: string) => {
     set({ loading: true });
     try {
-      const { data } = await authApi.login({ email, password });
+      const { data } = await authApi.login({ email: normalizeEmail(email), password });
       localStorage.setItem('access_token', data.access_token);
       localStorage.setItem('refresh_token', data.refresh_token);
       const isAdmin = isAdminRole(data.user.role);
@@ -75,9 +79,10 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   register: async (email: string, password: string, captchaToken: string, username?: string) => {
     set({ loading: true });
     try {
-      await authApi.register({ email, password, captchaToken, username });
+      const normalizedEmail = normalizeEmail(email);
+      await authApi.register({ email: normalizedEmail, password, captchaToken, username });
       // 注册成功后不再直接签发 token —— 需要先验证邮箱
-      return email;
+      return normalizedEmail;
     } finally {
       set({ loading: false });
     }

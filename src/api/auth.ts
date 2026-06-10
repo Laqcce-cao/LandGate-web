@@ -66,6 +66,10 @@ export const authApi = {
     client.post<{ message: string }>('/auth/verify-email', { email, code }),
   resendVerificationCode: (email: string) =>
     client.post<{ message: string }>('/auth/resend-verification-code', { email }),
+  requestPasswordResetCode: (email: string) =>
+    client.post<{ message: string }>('/auth/password-reset-code', { email }),
+  resetPassword: (email: string, code: string, newPassword: string) =>
+    client.post<{ message: string }>('/auth/password-reset', { email, code, newPassword }),
   updatePassword: (oldPassword: string, newPassword: string) =>
     client.put<{ message: string }>('/auth/password', { oldPassword, newPassword }),
   updateUsername: (username: string) =>

@@ -14,7 +14,14 @@ client.interceptors.request.use((config) => {
   return config;
 });
 
-const AUTH_ENDPOINTS = ['/auth/login', '/auth/register', '/auth/verify-email', '/auth/resend-verification-code'];
+const AUTH_ENDPOINTS = [
+  '/auth/login',
+  '/auth/register',
+  '/auth/verify-email',
+  '/auth/resend-verification-code',
+  '/auth/password-reset-code',
+  '/auth/password-reset',
+];
 
 client.interceptors.response.use(
   (res) => res,

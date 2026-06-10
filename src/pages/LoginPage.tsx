@@ -21,13 +21,14 @@ export default function LoginPage() {
     setEmailError('');
     setNeedsVerification(false);
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setEmailError('请输入邮箱');
       return;
     }
 
     try {
-      const redirectTo = await login(email, password);
+      const redirectTo = await login(normalizedEmail, password);
       navigate(redirectTo);
     } catch (err: unknown) {
       const msg =
@@ -54,7 +55,7 @@ export default function LoginPage() {
             邮箱尚未验证，请检查收件箱中的验证邮件。
             <br />
             <Link
-              to={`/verify-email?email=${encodeURIComponent(email)}`}
+              to={`/verify-email?email=${encodeURIComponent(email.trim().toLowerCase())}`}
               className="font-medium text-violet-600 hover:text-violet-700 underline"
             >
               前往验证邮箱 →
@@ -81,7 +82,12 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <label className="input-label">密码</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="input-label mb-0">密码</label>
+            <Link to="/forgot-password" className="text-xs font-medium text-violet-600 hover:text-violet-700">
+              忘记密码？
+            </Link>
+          </div>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
               <Icon name="lock" size="sm" />

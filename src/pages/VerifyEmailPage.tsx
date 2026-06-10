@@ -8,7 +8,8 @@ const RESEND_COOLDOWN = 60;
 
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
-  const emailFromParam = searchParams.get('email') || '';
+  const emailFromParam = (searchParams.get('email') || '').trim().toLowerCase();
+  const emailLocked = !!emailFromParam;
   const [email, setEmail] = useState(emailFromParam);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -47,7 +48,8 @@ export default function VerifyEmailPage() {
     setError('');
     setSuccess('');
 
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setError('请输入邮箱');
       return;
     }
@@ -59,7 +61,7 @@ export default function VerifyEmailPage() {
 
     setLoading(true);
     try {
-      await authApi.verifyEmail(email, code);
+      await authApi.verifyEmail(normalizedEmail, code);
       setSuccess('邮箱验证成功！即将跳转到登录页...');
       setTimeout(() => navigate('/login'), 1500);
     } catch (err: unknown) {
@@ -73,7 +75,8 @@ export default function VerifyEmailPage() {
   };
 
   const handleResend = async () => {
-    if (!email.trim()) {
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) {
       setError('请先输入邮箱');
       return;
     }
@@ -82,7 +85,7 @@ export default function VerifyEmailPage() {
     setError('');
     setSuccess('');
     try {
-      await authApi.resendVerificationCode(email);
+      await authApi.resendVerificationCode(normalizedEmail);
       startCooldown();
       setSuccess('验证码已重新发送，请查收邮件');
     } catch (err: unknown) {
@@ -118,11 +121,12 @@ export default function VerifyEmailPage() {
             </div>
             <input
               type="email"
-              className="input pl-10"
+              className={`input pl-10 ${emailLocked ? 'cursor-not-allowed bg-gray-50 text-gray-500 dark:bg-dark-900 dark:text-dark-400' : ''}`}
               placeholder="请输入注册时使用的邮箱"
               value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-              autoFocus={!emailFromParam}
+              readOnly={emailLocked}
+              onChange={(e) => { if (!emailLocked) { setEmail(e.target.value); setError(''); } }}
+              autoFocus={!emailLocked}
             />
           </div>
         </div>

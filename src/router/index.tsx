@@ -5,7 +5,9 @@ import { AppLayout } from '../components/layout/AppLayout';
 import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import VerifyEmailPage from '../pages/VerifyEmailPage';
+import ForgotPasswordPage from '../pages/ForgotPasswordPage';
 import DashboardPage from '../pages/DashboardPage';
+import CheckinPage from '../pages/CheckinPage';
 import AdminDashboardPage from '../pages/AdminDashboardPage';
 import ApiKeysPage from '../pages/ApiKeysPage';
 import AccountsPage from '../pages/AccountsPage';
@@ -17,6 +19,7 @@ import AdminUsagePage from '../pages/AdminUsagePage';
 import ModelPricesPage from '../pages/ModelPricesPage';
 import UsersPage from '../pages/admin/UsersPage';
 import ApiKeysAdminPage from '../pages/admin/ApiKeysAdminPage';
+import BalanceTransactionsAdminPage from '../pages/admin/BalanceTransactionsAdminPage';
 import ProfilePage from '../pages/ProfilePage';
 
 function AuthGuard() {
@@ -83,6 +86,7 @@ export default function AppRouter() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/register" element={<RegisterPage />} />
             <Route path="/verify-email" element={<VerifyEmailPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           </Route>
         </Route>
 
@@ -90,6 +94,7 @@ export default function AppRouter() {
         <Route element={<AuthGuard />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/checkin" element={<CheckinPage />} />
             <Route path="/api-keys" element={<ApiKeysPage />} />
             <Route path="/usage" element={<UsagePage />} />
             <Route path="/balance-transactions" element={<BalanceTransactionsPage />} />
@@ -107,6 +112,7 @@ export default function AppRouter() {
             <Route path="/admin/usage" element={<AdminUsagePage />} />
             <Route path="/admin/model-prices" element={<ModelPricesPage />} />
             <Route path="/admin/users" element={<UsersPage />} />
+            <Route path="/admin/balance-transactions" element={<BalanceTransactionsAdminPage />} />
             <Route path="/admin/api-keys" element={<ApiKeysAdminPage />} />
           </Route>
         </Route>
