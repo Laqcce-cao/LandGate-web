@@ -10,6 +10,12 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog';
 import { LoadingSpinner } from '../../components/ui/LoadingSpinner';
 import { Toggle } from '../../components/ui/Toggle';
 import { useToastStore } from '../../stores/toastStore';
+import {
+  buildCcSwitchImportDeeplink,
+  CLAUDE_CC_SWITCH_MODEL,
+  OPENAI_CC_SWITCH_CODEX_MODEL,
+  type CcSwitchApp,
+} from '../../utils/ccswitchImport';
 
 /* ── Helpers ── */
 
@@ -67,6 +73,8 @@ const CLAUDE_CODE_API_BASE_URL = 'https://laqcce-cao.com';
 
 function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => void; apiKey: AdminApiKey | null }) {
   const [copied, setCopied] = useState<string | null>(null);
+  const [codexModel, setCodexModel] = useState(OPENAI_CC_SWITCH_CODEX_MODEL);
+  const [claudeModel, setClaudeModel] = useState(CLAUDE_CC_SWITCH_MODEL);
   const addToast = useToastStore((s) => s.addToast);
 
   if (!apiKey) return null;
@@ -103,9 +111,90 @@ function UseKeyModal({ open, onClose, apiKey }: { open: boolean; onClose: () => 
     </div>
   );
 
+  const buildUsageScript = (usagePath: string) => `({
+    request: {
+      url: "{{baseUrl}}${usagePath}",
+      method: "GET",
+      headers: { "Authorization": "Bearer {{apiKey}}" }
+    },
+    extractor: function(response) {
+      const remaining = response?.remaining ?? response?.quota?.remaining ?? response?.balance;
+      const unit = response?.unit ?? response?.quota?.unit ?? "USD";
+      return {
+        isValid: response?.is_active ?? response?.isValid ?? true,
+        remaining,
+        unit
+      };
+    }
+  })`;
+
+  const handleCcSwitchImport = (app: CcSwitchApp) => {
+    const endpoint = app === 'codex' ? codexBaseUrl : claudeCodeBaseUrl;
+    const deeplink = buildCcSwitchImportDeeplink({
+      app,
+      endpoint,
+      homepage: claudeCodeBaseUrl,
+      providerName: 'LandGate',
+      apiKey: apiKey.key,
+      model: app === 'codex'
+        ? (codexModel.trim() || OPENAI_CC_SWITCH_CODEX_MODEL)
+        : (claudeModel.trim() || CLAUDE_CC_SWITCH_MODEL),
+      usageScript: buildUsageScript('/v1/usage'),
+    });
+
+    try {
+      window.open(deeplink, '_self');
+      window.setTimeout(() => {
+        if (document.hasFocus()) {
+          addToast({ type: 'error', message: '未检测到 cc switch，请先安装后重试' });
+        }
+      }, 100);
+    } catch {
+      addToast({ type: 'error', message: '未检测到 cc switch，请先安装后重试' });
+    }
+  };
+
   return (
     <Modal open={open} onClose={onClose} title="使用 API Key" width="wide">
       <div className="space-y-5">
+        <div className="rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/40 dark:bg-blue-900/10">
+          <div className="mb-3 flex items-start gap-3">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-blue-500 text-white">
+              <Icon name="download" size="sm" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-blue-900 dark:text-blue-200">一键导入 cc switch</p>
+              <p className="mt-0.5 text-xs text-blue-700 dark:text-blue-300">
+                自动写入 Provider、Endpoint 和 API Key，无需手动复制环境变量。
+              </p>
+            </div>
+          </div>
+          <div className="mb-3 grid gap-3 sm:grid-cols-2">
+            <Input
+              label="Claude 默认模型"
+              value={claudeModel}
+              onChange={(e) => setClaudeModel(e.target.value)}
+              placeholder={CLAUDE_CC_SWITCH_MODEL}
+            />
+            <Input
+              label="Codex 默认模型"
+              value={codexModel}
+              onChange={(e) => setCodexModel(e.target.value)}
+              placeholder={OPENAI_CC_SWITCH_CODEX_MODEL}
+            />
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" size="sm" onClick={() => handleCcSwitchImport('claude')}>
+              <Icon name="externalLink" size="sm" />
+              导入 Claude Code
+            </Button>
+            <Button variant="secondary" size="sm" onClick={() => handleCcSwitchImport('codex')}>
+              <Icon name="externalLink" size="sm" />
+              导入 Codex
+            </Button>
+          </div>
+        </div>
+
         <div>
           <label className="input-label">Codex / OpenAI SDK API 端点</label>
           <div className="flex items-center gap-2">

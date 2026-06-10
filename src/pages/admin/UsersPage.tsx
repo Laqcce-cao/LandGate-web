@@ -79,7 +79,10 @@ export default function UsersPage() {
   const [saving, setSaving] = useState(false);
   const [toggleTarget, setToggleTarget] = useState<User | null>(null);
   const [rechargeTarget, setRechargeTarget] = useState<User | null>(null);
+  const [rechargeKind, setRechargeKind] = useState<'PAID' | 'GIFT' | 'DEDUCT'>('PAID');
   const [rechargeAmount, setRechargeAmount] = useState('');
+  const [cashIncomeAmount, setCashIncomeAmount] = useState('');
+  const [rechargeRemark, setRechargeRemark] = useState('');
   const [recharging, setRecharging] = useState(false);
   const addToast = useToastStore((s) => s.addToast);
 
@@ -164,7 +167,6 @@ export default function UsersPage() {
         username: username.trim(),
         role,
         status: statusForm,
-        balance: Number(balance) || 0,
         concurrency: Number(concurrency) || 1,
         rpmLimit: Number(rpmLimit) || 0,
         notes: notes.trim(),
@@ -194,25 +196,50 @@ export default function UsersPage() {
 
   const openRecharge = (user: User) => {
     setRechargeTarget(user);
+    setRechargeKind('PAID');
     setRechargeAmount('');
+    setCashIncomeAmount('');
+    setRechargeRemark('');
   };
 
   const handleRecharge = async () => {
     if (!rechargeTarget) return;
     const amount = Number(rechargeAmount);
     if (!amount || amount <= 0) {
-      addToast({ type: 'error', message: '请输入有效的充值金额' });
+      addToast({ type: 'error', message: '请输入有效的调整金额' });
+      return;
+    }
+    if (!rechargeRemark.trim()) {
+      addToast({ type: 'error', message: '请输入调整备注' });
+      return;
+    }
+    if (rechargeKind === 'DEDUCT' && amount > (rechargeTarget.balance ?? 0)) {
+      addToast({ type: 'error', message: '扣减后余额不能小于 0' });
+      return;
+    }
+    const cashIncome = rechargeKind === 'PAID'
+      ? (cashIncomeAmount ? Number(cashIncomeAmount) : amount)
+      : 0;
+    if (cashIncome < 0) {
+      addToast({ type: 'error', message: '实际收款不能小于 0' });
       return;
     }
     setRecharging(true);
     try {
-      await usersApi.recharge(rechargeTarget.id, amount);
-      addToast({ type: 'success', message: `已为 ${rechargeTarget.username || rechargeTarget.email} 充值 $${amount.toFixed(2)}` });
+      await usersApi.adjustBalance(rechargeTarget.id, {
+        kind: rechargeKind,
+        amount,
+        cashIncomeAmount: cashIncome,
+        remark: rechargeRemark.trim(),
+      });
+      addToast({ type: 'success', message: `已调整 ${rechargeTarget.username || rechargeTarget.email} 的余额` });
       setRechargeTarget(null);
       setRechargeAmount('');
+      setCashIncomeAmount('');
+      setRechargeRemark('');
       fetchUsers();
     } catch {
-      addToast({ type: 'error', message: '充值失败' });
+      addToast({ type: 'error', message: '余额调整失败' });
     } finally {
       setRecharging(false);
     }
@@ -513,10 +540,10 @@ export default function UsersPage() {
             </legend>
             <div className="mt-1 grid grid-cols-3 gap-3">
               <Input
-                label="余额 (USD)"
-                type="number"
-                value={balance}
-                onChange={(e) => setBalance(e.target.value)}
+                label="当前余额 (USD)"
+                value={`$${Number(balance || 0).toFixed(2)}`}
+                readOnly
+                hint="余额请通过“余额调整”操作变更"
               />
               <Input
                 label="并发上限"
@@ -547,16 +574,16 @@ export default function UsersPage() {
         </div>
       </Modal>
 
-      {/* Recharge modal */}
+      {/* Balance adjustment modal */}
       <Modal
         open={!!rechargeTarget}
         onClose={() => setRechargeTarget(null)}
-        title="用户充值"
+        title="余额调整"
         width="narrow"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="secondary" onClick={() => setRechargeTarget(null)}>取消</Button>
-            <Button onClick={handleRecharge} loading={recharging}>确认充值</Button>
+            <Button onClick={handleRecharge} loading={recharging}>确认调整</Button>
           </div>
         }
       >
@@ -582,21 +609,62 @@ export default function UsersPage() {
             </div>
           </div>
 
+          <div>
+            <label className="input-label">操作类型</label>
+            <div className="grid grid-cols-3 gap-2">
+              {[
+                { key: 'PAID', label: '线下充值' },
+                { key: 'GIFT', label: '赠送补偿' },
+                { key: 'DEDUCT', label: '扣减余额' },
+              ].map((item) => (
+                <button
+                  key={item.key}
+                  type="button"
+                  onClick={() => setRechargeKind(item.key as 'PAID' | 'GIFT' | 'DEDUCT')}
+                  className={`rounded-lg border px-2 py-2 text-xs font-medium transition-colors ${
+                    rechargeKind === item.key
+                      ? 'border-violet-400 bg-violet-50 text-violet-700 dark:border-violet-700 dark:bg-violet-900/20 dark:text-violet-300'
+                      : 'border-gray-200 text-gray-600 hover:bg-gray-50 dark:border-dark-600 dark:text-dark-400 dark:hover:bg-dark-800'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <Input
-            label="充值金额 (USD)"
+            label={rechargeKind === 'DEDUCT' ? '扣减余额 (USD)' : rechargeKind === 'GIFT' ? '赠送余额 (USD)' : '入账余额 (USD)'}
             type="number"
             value={rechargeAmount}
             onChange={(e) => setRechargeAmount(e.target.value)}
-            placeholder="输入充值金额，如 50.00"
-            hint="充值后余额将加上此金额"
+            placeholder="输入金额，如 50.00"
+          />
+
+          {rechargeKind === 'PAID' && (
+            <Input
+              label="实际收款 (USD)"
+              type="number"
+              value={cashIncomeAmount}
+              onChange={(e) => setCashIncomeAmount(e.target.value)}
+              placeholder="默认等于入账余额"
+              hint="可填写真实线下收款金额，如收 50 但入账 100"
+            />
+          )}
+
+          <Input
+            label="调整备注"
+            value={rechargeRemark}
+            onChange={(e) => setRechargeRemark(e.target.value)}
+            placeholder={rechargeKind === 'DEDUCT' ? '例如：误充扣回' : rechargeKind === 'GIFT' ? '例如：服务异常补偿' : '例如：线下转账充值'}
           />
 
           {rechargeAmount && Number(rechargeAmount) > 0 && (
-            <div className="rounded-lg bg-emerald-50 p-3 dark:bg-emerald-900/20">
+            <div className={`rounded-lg p-3 ${rechargeKind === 'DEDUCT' ? 'bg-amber-50 dark:bg-amber-900/20' : 'bg-emerald-50 dark:bg-emerald-900/20'}`}>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-emerald-600 dark:text-emerald-400">充值后余额</span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-300 font-mono tabular-nums">
-                  ${((rechargeTarget?.balance ?? 0) + Number(rechargeAmount)).toFixed(2)}
+                <span className={rechargeKind === 'DEDUCT' ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}>调整后余额</span>
+                <span className={`font-semibold font-mono tabular-nums ${rechargeKind === 'DEDUCT' ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}`}>
+                  ${((rechargeTarget?.balance ?? 0) + (rechargeKind === 'DEDUCT' ? -Number(rechargeAmount) : Number(rechargeAmount))).toFixed(2)}
                 </span>
               </div>
             </div>
