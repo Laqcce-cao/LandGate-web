@@ -81,7 +81,12 @@ export default function LoginPage() {
         </div>
 
         <div>
-          <label className="input-label">密码</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="input-label mb-0">密码</label>
+            <Link to="/forgot-password" className="text-xs font-medium text-violet-600 hover:text-violet-700">
+              忘记密码？
+            </Link>
+          </div>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400">
               <Icon name="lock" size="sm" />

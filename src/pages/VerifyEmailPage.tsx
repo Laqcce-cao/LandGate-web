@@ -9,6 +9,7 @@ const RESEND_COOLDOWN = 60;
 export default function VerifyEmailPage() {
   const [searchParams] = useSearchParams();
   const emailFromParam = searchParams.get('email') || '';
+  const emailLocked = !!emailFromParam;
   const [email, setEmail] = useState(emailFromParam);
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
@@ -118,11 +119,12 @@ export default function VerifyEmailPage() {
             </div>
             <input
               type="email"
-              className="input pl-10"
+              className={`input pl-10 ${emailLocked ? 'cursor-not-allowed bg-gray-50 text-gray-500 dark:bg-dark-900 dark:text-dark-400' : ''}`}
               placeholder="请输入注册时使用的邮箱"
               value={email}
-              onChange={(e) => { setEmail(e.target.value); setError(''); }}
-              autoFocus={!emailFromParam}
+              readOnly={emailLocked}
+              onChange={(e) => { if (!emailLocked) { setEmail(e.target.value); setError(''); } }}
+              autoFocus={!emailLocked}
             />
           </div>
         </div>

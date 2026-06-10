@@ -66,8 +66,8 @@ export default function ProfilePage() {
       addToast({ type: 'error', message: '请输入当前密码' });
       return;
     }
-    if (newPassword.length < 8) {
-      addToast({ type: 'error', message: '新密码至少为 8 位' });
+    if (newPassword.length < 8 || newPassword.length > 128) {
+      addToast({ type: 'error', message: '新密码长度需要在 8 到 128 位之间' });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -163,7 +163,7 @@ export default function ProfilePage() {
               <input
                 type={showPassword ? 'text' : 'password'}
                 className="input pl-10"
-                placeholder="输入新密码（至少8位）"
+                placeholder="输入新密码（8 到 128 位）"
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
               />
