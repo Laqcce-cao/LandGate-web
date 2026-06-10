@@ -6,6 +6,7 @@ import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import VerifyEmailPage from '../pages/VerifyEmailPage';
 import DashboardPage from '../pages/DashboardPage';
+import CheckinPage from '../pages/CheckinPage';
 import AdminDashboardPage from '../pages/AdminDashboardPage';
 import ApiKeysPage from '../pages/ApiKeysPage';
 import AccountsPage from '../pages/AccountsPage';
@@ -90,6 +91,7 @@ export default function AppRouter() {
         <Route element={<AuthGuard />}>
           <Route element={<AppLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/checkin" element={<CheckinPage />} />
             <Route path="/api-keys" element={<ApiKeysPage />} />
             <Route path="/usage" element={<UsagePage />} />
             <Route path="/balance-transactions" element={<BalanceTransactionsPage />} />

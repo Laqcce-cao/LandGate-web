@@ -6,6 +6,7 @@ import { useAuthStore } from '../../stores/authStore';
 
 const userNavItems = [
   { path: '/dashboard', label: '仪表盘', icon: 'grid' as const },
+  { path: '/checkin', label: '每日签到', icon: 'gift' as const },
   { path: '/api-keys', label: 'API Keys', icon: 'key' as const },
   { path: '/usage', label: '用量统计', icon: 'chartBar' as const },
   { path: '/balance-transactions', label: '余额明细', icon: 'dollar' as const },

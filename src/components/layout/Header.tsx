@@ -4,6 +4,7 @@ import { Icon } from '../ui/Icon';
 
 const pageTitles: Record<string, string> = {
   '/dashboard': '仪表盘',
+  '/checkin': '每日签到',
   '/api-keys': 'API Keys',
   '/usage': '用量统计',
   '/balance-transactions': '余额明细',
