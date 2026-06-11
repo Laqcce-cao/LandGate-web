@@ -6,6 +6,7 @@ import LoginPage from '../pages/LoginPage';
 import RegisterPage from '../pages/RegisterPage';
 import VerifyEmailPage from '../pages/VerifyEmailPage';
 import ForgotPasswordPage from '../pages/ForgotPasswordPage';
+import HomePage from '../pages/HomePage';
 import DashboardPage from '../pages/DashboardPage';
 import CheckinPage from '../pages/CheckinPage';
 import AdminDashboardPage from '../pages/AdminDashboardPage';
@@ -80,6 +81,9 @@ export default function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
+        {/* Public landing page */}
+        <Route path="/" element={<HomePage />} />
+
         {/* Auth pages (redirect if already logged in) */}
         <Route element={<GuestGuard />}>
           <Route element={<AuthLayout />}>
@@ -118,7 +122,6 @@ export default function AppRouter() {
         </Route>
 
         {/* Default redirect */}
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="*" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </BrowserRouter>
