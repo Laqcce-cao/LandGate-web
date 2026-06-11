@@ -82,15 +82,15 @@ function TimeRangeBar({ preset, start, end, onPresetChange, onStartChange, onEnd
   const isCustom = preset === 'custom';
 
   return (
-    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
-      <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+    <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.055]">
+      <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-white/[0.055]">
         {PRESETS.map((p) => (
           <button
             key={p.key}
             className={clsx(
               'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
               preset === p.key
-                ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                ? 'bg-white text-gray-900 shadow-sm dark:bg-white/[0.12] dark:text-white'
                 : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200',
             )}
             onClick={() => onPresetChange(p.key)}
@@ -194,7 +194,7 @@ function ModelDistributionCard({ data, loading, isDark }: {
   }, [sorted]);
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-dark-700/50 dark:bg-dark-800">
+    <div className="group relative overflow-hidden rounded-2xl border border-gray-100/80 bg-white p-5 dark:border-white/10 dark:bg-white/[0.055]">
       <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">模型分布</h3>
       {loading ? (
         <div className="flex h-64 items-center justify-center">
@@ -287,14 +287,17 @@ function TokenTrendCard({ data, loading, isDark }: {
 }) {
   const chartData = useMemo(() =>
     data.map((s) => {
-      const totalCache = (s.cacheReadTokens ?? 0) + (s.cacheCreationTokens ?? 0);
-      const cacheHitRate = totalCache > 0 ? ((s.cacheReadTokens ?? 0) / totalCache) * 100 : 0;
+      const inputTokens = s.inputTokens ?? 0;
+      const cacheReadTokens = s.cacheReadTokens ?? 0;
+      const cacheCreationTokens = s.cacheCreationTokens ?? 0;
+      const totalInputContext = inputTokens + cacheReadTokens + cacheCreationTokens;
+      const cacheHitRate = totalInputContext > 0 ? (cacheReadTokens / totalInputContext) * 100 : 0;
       const d = new Date(s.date);
       return {
         label: `${d.getMonth() + 1}/${d.getDate()}`,
-        inputTokens: s.inputTokens ?? 0,
+        inputTokens,
         outputTokens: s.outputTokens ?? 0,
-        cacheReadTokens: s.cacheReadTokens ?? 0,
+        cacheReadTokens,
         cacheHitRate: Math.round(cacheHitRate * 10) / 10,
       };
     }),
@@ -486,7 +489,12 @@ export default function AdminDashboardPage() {
     }
   }, [addToast]);
 
-  useEffect(() => { fetchCharts(timeParams); }, [timeParams, fetchCharts]);
+  useEffect(() => {
+    const handle = window.setTimeout(() => {
+      void fetchCharts(timeParams);
+    }, 0);
+    return () => window.clearTimeout(handle);
+  }, [timeParams, fetchCharts]);
 
   const handlePresetChange = useCallback((key: PresetKey) => {
     setPreset(key);

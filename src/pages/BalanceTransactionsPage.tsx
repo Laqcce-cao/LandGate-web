@@ -115,7 +115,7 @@ export default function BalanceTransactionsPage() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-5 dark:border-violet-900/40 dark:from-violet-900/10 dark:to-indigo-900/10">
+      <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-5 dark:border-white/10 dark:from-white/[0.055] dark:to-white/[0.055]">
         <div className="flex items-start gap-3">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white shadow-lg shadow-violet-500/20">
             <Icon name="dollar" size="md" />

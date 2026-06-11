@@ -125,7 +125,7 @@ export default function CheckinPage() {
 
   return (
     <div className="space-y-5">
-      <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-5 dark:border-violet-900/40 dark:from-violet-900/10 dark:to-indigo-900/10">
+      <div className="rounded-2xl border border-violet-100 bg-gradient-to-br from-violet-50 to-indigo-50 p-5 dark:border-white/10 dark:from-white/[0.055] dark:to-white/[0.055]">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-violet-500 text-white shadow-lg shadow-violet-500/20">
@@ -167,7 +167,7 @@ export default function CheckinPage() {
                 className={`rounded-xl border p-3 text-center transition-colors ${
                   active
                     ? 'border-violet-300 bg-violet-50 dark:border-violet-800 dark:bg-violet-900/20'
-                    : 'border-gray-200 bg-white dark:border-dark-700 dark:bg-dark-800'
+                    : 'border-gray-200 bg-white dark:border-white/10 dark:bg-white/[0.055]'
                 }`}
               >
                 <div className={`mx-auto mb-2 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold ${active ? 'bg-violet-500 text-white' : 'bg-gray-100 text-gray-500 dark:bg-dark-700'}`}>

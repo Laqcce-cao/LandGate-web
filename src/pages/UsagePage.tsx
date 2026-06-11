@@ -285,9 +285,9 @@ export default function UsagePage() {
   return (
     <div>
       {/* Time range filter bar */}
-      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-gray-100/80 bg-white px-4 py-3 dark:border-white/10 dark:bg-white/[0.055]">
         {/* Preset buttons */}
-        <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-dark-800">
+        <div className="flex rounded-xl bg-gray-100 p-1 dark:bg-white/[0.055]">
           {PRESETS.map((p) => (
             <button
               key={p.key}
@@ -295,7 +295,7 @@ export default function UsagePage() {
               className={clsx(
                 'rounded-lg px-3.5 py-1.5 text-xs font-medium transition-all duration-200',
                 preset === p.key
-                  ? 'bg-white text-gray-900 shadow-sm dark:bg-dark-700 dark:text-white'
+                  ? 'bg-white text-gray-900 shadow-sm dark:bg-white/[0.12] dark:text-white'
                   : 'text-gray-500 hover:text-gray-700 dark:text-dark-400 dark:hover:text-dark-200'
               )}
             >
@@ -325,7 +325,7 @@ export default function UsagePage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-dark-700/50 dark:bg-dark-800">
+      <div className="overflow-hidden rounded-2xl border border-gray-100/80 bg-white dark:border-white/10 dark:bg-white/[0.055]">
         <div className="max-h-[60vh] overflow-auto">
           <DataTable
             columns={columns}

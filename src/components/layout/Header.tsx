@@ -51,18 +51,24 @@ export function Header({ onMenuClick, pathname }: HeaderProps) {
         <div className="flex items-center gap-3">
           <button
             onClick={onMenuClick}
-            className="rounded-xl p-2 hover:bg-gray-100 dark:hover:bg-dark-800 lg:hidden"
+            className="rounded-xl p-2 text-slate-600 transition-colors hover:bg-white/80 hover:text-slate-900 dark:text-dark-300 dark:hover:bg-white/[0.06] dark:hover:text-white lg:hidden"
           >
             <Icon name="menu" size="md" />
           </button>
-          <h1 className="text-lg font-semibold text-gray-900 dark:text-white">{pageTitle}</h1>
+          <div>
+            <h1 className="text-lg font-semibold tracking-tight text-gray-950 dark:text-white">{pageTitle}</h1>
+            <div className="mt-0.5 hidden h-1 w-14 rounded-full bg-gradient-to-r from-sky-400 via-violet-400 to-pink-400 sm:block" />
+          </div>
         </div>
 
         <div className="flex items-center gap-3">
           {/* Balance */}
           {user?.balance != null && (
-            <span className="rounded-full bg-primary-50 px-3 py-1 text-sm font-medium text-primary-700 dark:bg-primary-900/20 dark:text-primary-400">
+            <span className="relative overflow-hidden rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-sm font-semibold text-sky-700 shadow-sm dark:border-white/10 dark:bg-white/[0.06] dark:text-sky-300">
+              <span className="absolute inset-y-0 left-0 w-1/2 bg-gradient-to-r from-transparent via-white/50 to-transparent opacity-60 animate-[signalSweep_3.8s_ease-in-out_infinite]" />
+              <span className="relative">
               ${(Math.floor(Number(user.balance) * 100) / 100).toFixed(2)}
+              </span>
             </span>
           )}
 
@@ -70,12 +76,12 @@ export function Header({ onMenuClick, pathname }: HeaderProps) {
           <div className="relative" ref={dropdownRef}>
             <button
               onClick={() => setDropdownOpen(!dropdownOpen)}
-              className="flex items-center gap-2 rounded-xl p-1.5 hover:bg-gray-100 dark:hover:bg-dark-800"
+              className="flex items-center gap-2 rounded-2xl border border-transparent p-1.5 transition-all hover:border-slate-200 hover:bg-white hover:shadow-sm dark:hover:border-white/10 dark:hover:bg-white/[0.06]"
             >
-              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-primary-500 to-primary-600 text-sm font-medium text-white">
+              <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-violet-400 to-pink-400 text-sm font-semibold text-white shadow-sm shadow-pink-400/20">
                 {user?.username?.charAt(0)?.toUpperCase() ?? user?.email?.charAt(0)?.toUpperCase() ?? 'A'}
               </div>
-              <span className="hidden text-sm font-medium text-gray-700 dark:text-gray-300 sm:block">
+              <span className="hidden max-w-[150px] truncate text-sm font-medium text-gray-700 dark:text-gray-300 sm:block">
                 {user?.username ?? user?.email ?? 'Admin'}
               </span>
               <Icon name="chevronDown" size="sm" className="hidden sm:block" />
