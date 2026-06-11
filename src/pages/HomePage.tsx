@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { AmbientScene } from '../components/layout/AmbientScene';
 import { Icon, type IconName } from '../components/ui/Icon';
 import { useAuthStore } from '../stores/authStore';
+import { useThemeStore } from '../stores/themeStore';
 
 const featureTags: Array<{ icon: IconName; label: string }> = [
   { icon: 'server', label: '统一模型网关' },
@@ -92,6 +93,7 @@ function TerminalPreview() {
 export default function HomePage() {
   const token = useAuthStore((s) => s.token);
   const isAdmin = useAuthStore((s) => s.isAdmin);
+  const { theme, toggleTheme } = useThemeStore();
   const dashboardPath = isAdmin ? '/admin/dashboard' : '/dashboard';
   const primaryPath = token ? dashboardPath : '/register';
 
@@ -117,6 +119,15 @@ export default function HomePage() {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="inline-flex h-9 w-9 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-900 dark:text-dark-300 dark:hover:bg-white/[0.06] dark:hover:text-white"
+              aria-label={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
+              title={theme === 'dark' ? '切换到日间模式' : '切换到夜间模式'}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size="sm" />
+            </button>
             <Link
               to="/login"
               className="hidden rounded-lg px-3 py-2 text-sm font-medium text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-700 dark:text-dark-400 dark:hover:bg-white/[0.06] dark:hover:text-white sm:inline-flex"
