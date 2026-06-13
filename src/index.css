@@ -27,16 +27,14 @@
     @apply bg-[#F6F6F3] text-[#101418] dark:bg-dark-950 dark:text-gray-100;
     @apply min-h-screen;
     background-image:
-      linear-gradient(180deg, #fbfbfa 0%, #f6f6f3 48%, #eef0ed 100%),
-      repeating-linear-gradient(118deg, transparent 0 108px, rgba(16, 20, 24, 0.028) 109px, transparent 110px);
-    background-size: auto, 220px 220px;
+      radial-gradient(circle at 50% -18%, rgba(232, 226, 216, 0.78), transparent 42%),
+      linear-gradient(180deg, #fbfbfa 0%, #f7f7f4 52%, #f2f3ef 100%);
   }
 
   .dark body {
     background-image:
-      linear-gradient(180deg, #090b0e 0%, #0e1116 54%, #080a0d 100%),
-      repeating-linear-gradient(118deg, transparent 0 108px, rgba(220, 214, 205, 0.04) 109px, transparent 110px);
-    background-size: auto, 220px 220px;
+      radial-gradient(circle at 50% -18%, rgba(87, 76, 62, 0.22), transparent 44%),
+      linear-gradient(180deg, #090b0e 0%, #0f1217 54%, #080a0d 100%);
   }
 
   @supports (-moz-appearance: none) {
@@ -119,9 +117,9 @@
   .ambient-gradient {
     @apply absolute inset-0;
     background:
-      linear-gradient(180deg, rgba(255,255,255,0.72), rgba(246,246,243,0.12)),
-      radial-gradient(920px 420px at 50% -16%, rgba(167, 122, 69, 0.09), transparent 72%),
-      radial-gradient(760px 360px at 88% 8%, rgba(30, 42, 68, 0.06), transparent 76%);
+      linear-gradient(180deg, rgba(255,255,255,0.84), rgba(246,246,243,0.14)),
+      radial-gradient(980px 460px at 50% -18%, rgba(167, 122, 69, 0.08), transparent 74%),
+      radial-gradient(820px 380px at 88% 12%, rgba(30, 42, 68, 0.045), transparent 78%);
   }
 
   .dark .ambient-gradient {
@@ -131,12 +129,26 @@
       radial-gradient(760px 360px at 88% 8%, rgba(115, 131, 163, 0.09), transparent 76%);
   }
 
+  .ambient-route-canvas {
+    @apply absolute inset-0 h-full w-full;
+    opacity: 0.72;
+    transform: translateZ(0);
+  }
+
+  .ambient-scene-compact .ambient-route-canvas {
+    opacity: 0.5;
+  }
+
+  .dark .ambient-route-canvas {
+    opacity: 0.58;
+  }
+
   .ambient-line-field {
-    @apply absolute inset-0 opacity-[0.16] dark:opacity-[0.1];
+    @apply absolute inset-0 opacity-[0.055] dark:opacity-[0.045];
     background-image:
-      repeating-linear-gradient(118deg, transparent 0 96px, rgba(16, 20, 24, 0.16) 97px, transparent 98px),
-      repeating-linear-gradient(62deg, transparent 0 148px, rgba(167, 122, 69, 0.12) 149px, transparent 150px);
-    background-size: 360px 360px, 520px 520px;
+      linear-gradient(90deg, rgba(16, 20, 24, 0.12) 1px, transparent 1px),
+      linear-gradient(180deg, rgba(16, 20, 24, 0.1) 1px, transparent 1px);
+    background-size: 96px 96px;
     mask-image: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent 88%);
   }
 
@@ -183,7 +195,7 @@
   }
 
   .ambient-static-dots {
-    @apply absolute inset-0 opacity-[0.08] dark:opacity-[0.06];
+    @apply absolute inset-0 opacity-[0.035] dark:opacity-[0.04];
     background-image: radial-gradient(circle, rgba(16, 20, 24, 0.18) 1px, transparent 1px);
     background-size: 42px 42px;
     mask-image: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent 76%);
