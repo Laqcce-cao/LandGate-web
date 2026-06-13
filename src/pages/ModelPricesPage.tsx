@@ -204,10 +204,10 @@ export default function ModelPricesPage() {
   }
 
   return (
-    <div>
+    <div className="min-w-0 overflow-x-hidden">
       {/* ── header ── */}
       <div className="mb-4 flex items-center justify-between gap-4">
-        <p className="shrink-0 text-sm font-medium text-[#63766F] dark:text-dark-400">
+        <p className="shrink-0 text-sm font-medium text-[#6D737C] dark:text-dark-400">
           共 {filteredPrices.length} 个模型价格
         </p>
         <div className="flex items-center gap-3 flex-1 max-w-md">
@@ -234,7 +234,7 @@ export default function ModelPricesPage() {
         ) : filteredPrices.map((p) => {
           const showCache = hasCachePrice(p);
           return (
-            <div key={p.id} className="rounded-[1.1rem] border border-[#D4E2DC] bg-[#FBFDF9] p-4 shadow-sm dark:border-white/10 dark:bg-[#101A18]">
+            <div key={p.id} className="rounded-[1.1rem] border border-[#D8D5CC] bg-white/78 p-4 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
                   <button
@@ -283,7 +283,7 @@ export default function ModelPricesPage() {
                 {p.notes && <span className="min-w-0 truncate">备注: {p.notes}</span>}
               </div>
 
-              <div className="mt-3 flex justify-end gap-1 border-t border-gray-100 pt-3 dark:border-dark-700">
+              <div className="mt-3 flex justify-end gap-1 border-t border-[#D8D5CC] pt-3 dark:border-white/10">
                 <Button variant="ghost" size="sm" onClick={() => openEdit(p)} aria-label={`编辑价格 ${p.model}`}>
                   <Icon name="edit" size="xs" />
                 </Button>
@@ -297,27 +297,27 @@ export default function ModelPricesPage() {
       </div>
 
       {/* ── table ── */}
-      <div className="hidden overflow-hidden rounded-[1.2rem] border border-[#D4E2DC] bg-[#FBFDF9] shadow-sm dark:border-white/10 dark:bg-[#101A18] md:block">
-        <div className="max-h-[60vh] overflow-auto">
-          <table className="w-full text-sm">
+      <div className="hidden overflow-hidden rounded-[1.2rem] border border-[#D8D5CC] bg-white/78 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035] md:block">
+        <div className="overflow-x-hidden">
+          <table className="w-full table-fixed text-sm">
             <thead>
-              <tr className="border-b border-gray-100 dark:border-dark-700">
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+              <tr className="border-b border-[#D8D5CC] dark:border-white/10">
+                <th className="w-[34%] px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   模型
                 </th>
-                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                <th className="w-[18%] px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   计费模式
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                <th className="w-[16%] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   输入 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
                 </th>
-                <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                <th className="w-[16%] px-4 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   输出 <span className="font-normal text-gray-300 dark:text-dark-600">$/M</span>
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-16">
+                <th className="w-[8%] px-4 py-3 text-center text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   启用
                 </th>
-                <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-20">
+                <th className="w-[8%] px-5 py-3 text-right text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   操作
                 </th>
               </tr>
@@ -338,14 +338,14 @@ export default function ModelPricesPage() {
                   return (
                     <tr
                       key={p.id}
-                      className="border-b border-gray-50 transition-colors hover:bg-[#F3F8F4] dark:border-dark-800/50 dark:hover:bg-white/[0.035]"
+                      className="border-b border-[#D8D5CC] transition-colors last:border-b-0 hover:bg-[#FAF8F2]/70 dark:border-white/10 dark:hover:bg-white/[0.035]"
                     >
                       {/* 模型 */}
                       <td className="px-5 py-3.5">
                         <button
                           type="button"
                           onClick={() => openEdit(p)}
-                          className="text-left font-black text-[#10251F] transition-colors hover:text-[#007C86] dark:text-white"
+                          className="max-w-full truncate text-left font-black text-[#101418] transition-colors hover:text-[#8A6235] dark:text-white"
                         >
                           {p.model}
                         </button>

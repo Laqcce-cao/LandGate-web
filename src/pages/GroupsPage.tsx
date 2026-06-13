@@ -352,15 +352,15 @@ export default function GroupsPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-15rem)] min-h-[600px] flex-col gap-4 overflow-hidden">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
       {/* header */}
-      <div className="shrink-0 rounded-[1.1rem] border border-[#D4E2DC] bg-[#F7FAF6] px-4 py-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
+      <div className="rounded-[1.1rem] border border-[#D8D5CC] bg-white/72 px-4 py-3 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[#D4E2DC] bg-white px-2.5 py-1 text-xs font-semibold text-[#52665F] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
+            <span className="rounded-full border border-[#D8D5CC] bg-white px-2.5 py-1 text-xs font-semibold text-[#59616A] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
               分组 {groups.length}
             </span>
-            <span className="rounded-full border border-[#D4E2DC] bg-white px-2.5 py-1 text-xs font-semibold text-[#52665F] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
+            <span className="rounded-full border border-[#D8D5CC] bg-white px-2.5 py-1 text-xs font-semibold text-[#59616A] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
               号池账号 {accounts.length}
             </span>
           </div>
@@ -371,8 +371,8 @@ export default function GroupsPage() {
       </div>
 
       {/* rows */}
-      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden rounded-[1.2rem] border border-[#D4E2DC] bg-[#FBFDF9] shadow-sm dark:border-white/10 dark:bg-[#101A18]">
-        <div className="divide-y divide-[#E2ECE6] dark:divide-white/10">
+      <div className="min-w-0 overflow-hidden rounded-[1.2rem] border border-[#D8D5CC] bg-white/78 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
+        <div className="divide-y divide-[#D8D5CC] dark:divide-white/10">
         {groups.map((g) => {
           const gAccounts = accountsOfGroup(g.id);
           const excludedModels = parseExcludedModels(g);
@@ -382,13 +382,13 @@ export default function GroupsPage() {
           return (
             <div
               key={g.id}
-              className="w-full min-w-0 overflow-hidden border-l-[3px] px-4 py-4 transition-[background-color,border-color] hover:bg-[#F3F8F4] dark:hover:bg-white/[0.035] xl:px-5 xl:py-3"
+              className="w-full min-w-0 overflow-hidden border-l-[3px] px-4 py-4 transition-[background-color,border-color] hover:bg-[#FAF8F2]/70 dark:hover:bg-white/[0.035] xl:px-5 xl:py-3"
               style={{ borderLeftColor: providerAccent[provider] ?? '#00A6B2' }}
             >
               <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:gap-5">
                 <div className="min-w-0 xl:flex-[1.35_1_0]">
                   <div className="flex min-w-0 items-center gap-2">
-                    <h3 className="min-w-0 truncate text-sm font-black text-[#10251F] dark:text-white">{g.name}</h3>
+                    <h3 className="min-w-0 truncate text-sm font-black text-[#101418] dark:text-white">{g.name}</h3>
                     <span className="shrink-0 text-[11px] font-mono text-gray-400 dark:text-dark-500">#{g.id}</span>
                   </div>
                   <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
@@ -401,28 +401,28 @@ export default function GroupsPage() {
                     <StatusBadge status={g.status ?? 'ACTIVE'} />
                   </div>
                   {g.description && (
-                    <p className="mt-1 min-w-0 truncate text-xs text-[#657871] dark:text-dark-400">{g.description}</p>
+                    <p className="mt-1 min-w-0 truncate text-xs text-[#6D737C] dark:text-dark-400">{g.description}</p>
                   )}
                 </div>
 
                 <div className="grid min-w-0 grid-cols-3 gap-2 xl:w-[255px] xl:shrink-0">
-                  <div className="min-w-0 rounded-xl border border-[#E2ECE6] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7B8D86] dark:text-dark-500">倍率</p>
-                    <p className="truncate text-sm font-black text-[#203830] dark:text-dark-100">×{g.rateMultiplier ?? 1}</p>
+                  <div className="min-w-0 rounded-xl border border-[#E0DED7] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#6D737C] dark:text-dark-500">倍率</p>
+                    <p className="truncate text-sm font-black text-[#101418] dark:text-dark-100">×{g.rateMultiplier ?? 1}</p>
                   </div>
-                  <div className="min-w-0 rounded-xl border border-[#E2ECE6] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7B8D86] dark:text-dark-500">RPM</p>
-                    <p className="truncate text-sm font-black text-[#203830] dark:text-dark-100">{g.rpmLimit && g.rpmLimit > 0 ? g.rpmLimit : '不限'}</p>
+                  <div className="min-w-0 rounded-xl border border-[#E0DED7] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#6D737C] dark:text-dark-500">RPM</p>
+                    <p className="truncate text-sm font-black text-[#101418] dark:text-dark-100">{g.rpmLimit && g.rpmLimit > 0 ? g.rpmLimit : '不限'}</p>
                   </div>
-                  <div className="min-w-0 rounded-xl border border-[#E2ECE6] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
-                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7B8D86] dark:text-dark-500">有效期</p>
-                    <p className="truncate text-sm font-black text-[#203830] dark:text-dark-100">{g.defaultValidityDays ?? 30}天</p>
+                  <div className="min-w-0 rounded-xl border border-[#E0DED7] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#6D737C] dark:text-dark-500">有效期</p>
+                    <p className="truncate text-sm font-black text-[#101418] dark:text-dark-100">{g.defaultValidityDays ?? 30}天</p>
                   </div>
                 </div>
 
-                <div className="min-w-0 rounded-xl border border-[#DDE9E3] bg-[#F7FAF6] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035] xl:w-[245px] xl:shrink-0">
+                <div className="min-w-0 rounded-xl border border-[#E0DED7] bg-[#FBFBFA]/80 px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035] xl:w-[245px] xl:shrink-0">
                   <div className="flex min-w-0 items-center justify-between gap-3">
-                    <p className="truncate text-xs font-semibold text-[#7B8D86] dark:text-dark-500">账号池</p>
+                    <p className="truncate text-xs font-semibold text-[#6D737C] dark:text-dark-500">账号池</p>
                     {excludedModels.length > 0 && (
                       <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-500 dark:bg-red-900/20 dark:text-red-400">
                         排除 {excludedModels.length}
@@ -430,10 +430,10 @@ export default function GroupsPage() {
                     )}
                   </div>
                   <div className="mt-1 flex min-w-0 items-end justify-between gap-3">
-                    <p className="min-w-0 truncate text-sm font-black text-[#203830] dark:text-dark-100">
+                    <p className="min-w-0 truncate text-sm font-black text-[#101418] dark:text-dark-100">
                       {gAccounts.length > 0 ? `${gAccounts.length} 个账号` : '未绑定账号'}
                     </p>
-                    <span className="shrink-0 text-xs font-semibold text-[#7B8D86] dark:text-dark-500">
+                    <span className="shrink-0 text-xs font-semibold text-[#6D737C] dark:text-dark-500">
                       {providerCount > 0 ? `${providerCount} Provider` : '需配置'}
                     </span>
                   </div>

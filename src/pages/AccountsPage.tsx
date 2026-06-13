@@ -30,7 +30,27 @@ const parseJsonSafe = (raw: unknown): Record<string, unknown> => {
 
 // ---- Rate Limit 相关 ----
 
-function AccountUsageBars({ windows }: { windows: CodexUsageWindow[] }) {
+const formatResetCountdown = (window: CodexUsageWindow, nowMs: number, anchorMs: number): string | null => {
+  const resetAtMs = window.resetAt ? new Date(window.resetAt).getTime() : NaN;
+  const remainingSeconds = Number.isFinite(resetAtMs)
+    ? Math.max(0, Math.ceil((resetAtMs - nowMs) / 1000))
+    : window.resetAfterSeconds == null
+      ? null
+      : Math.max(0, Math.ceil(window.resetAfterSeconds - (nowMs - anchorMs) / 1000));
+
+  if (remainingSeconds == null || !Number.isFinite(remainingSeconds)) return null;
+  if (remainingSeconds <= 0) return '即将重置';
+
+  const days = Math.floor(remainingSeconds / 86400);
+  const hours = Math.floor((remainingSeconds % 86400) / 3600);
+  const minutes = Math.floor((remainingSeconds % 3600) / 60);
+
+  if (days > 0) return `${days}d ${hours}h`;
+  if (hours > 0) return `${hours}h ${minutes}m`;
+  return `${Math.max(1, minutes)}m`;
+};
+
+function AccountUsageBars({ windows, nowMs, anchorMs }: { windows: CodexUsageWindow[]; nowMs: number; anchorMs: number }) {
   if (windows.length === 0) {
     return <p className="truncate text-xs text-[#657871] dark:text-dark-400">无用量窗口</p>;
   }
@@ -40,26 +60,37 @@ function AccountUsageBars({ windows }: { windows: CodexUsageWindow[] }) {
       {windows.slice(0, 2).map((window) => {
         const remaining = window.usedPercent == null ? null : window.remainingPercent ?? Math.max(0, 100 - window.usedPercent);
         const width = remaining == null ? 0 : Math.min(Math.max(remaining, 0), 100);
+        const resetCountdown = formatResetCountdown(window, nowMs, anchorMs);
         const barColor = remaining == null
           ? 'bg-gray-300 dark:bg-dark-600'
           : remaining <= 10
             ? 'bg-red-500'
             : remaining <= 30
               ? 'bg-amber-500'
-              : 'bg-[#00A6B2]';
+              : 'bg-[#A77A45]';
 
         return (
-          <div key={`${window.label}-${window.scope}`} className="grid grid-cols-[2.3rem_1fr_2.5rem] items-center gap-2">
-            <span className="truncate text-[11px] font-semibold text-[#52665F] dark:text-dark-400">{window.label}</span>
-            <div className="h-1.5 overflow-hidden rounded-full bg-[#DDE9E3] dark:bg-white/10">
-              <div
-                className={`h-full rounded-full transition-[width,background-color] duration-500 ${barColor}`}
-                style={{ width: `${width}%` }}
-              />
+          <div key={`${window.label}-${window.scope}`}>
+            <div className="grid grid-cols-[2.3rem_minmax(3rem,1fr)_2.5rem_auto] items-center gap-2">
+              <span className="truncate text-[11px] font-semibold text-[#59616A] dark:text-dark-400">{window.label}</span>
+              <div className="h-1.5 overflow-hidden rounded-full bg-[#E4E1D9] dark:bg-white/10">
+                <div
+                  className={`h-full rounded-full transition-[width,background-color] duration-500 ${barColor}`}
+                  style={{ width: `${width}%` }}
+                />
+              </div>
+              <span className="text-right text-[11px] font-mono font-semibold text-[#101418] dark:text-dark-200">
+                {remaining == null ? '未知' : `${remaining}%`}
+              </span>
+              {resetCountdown ? (
+                <span className="inline-flex max-w-[6.8rem] items-center gap-1 rounded-full border border-[#D9C8AF] bg-[#FAF8F2]/90 px-2 py-0.5 text-[10px] font-semibold text-[#6F512D] shadow-sm dark:border-white/10 dark:bg-white/[0.05] dark:text-[#D8BE96]">
+                  <Icon name="clock" size="xs" className="shrink-0" />
+                  <span className="truncate">重置 {resetCountdown}</span>
+                </span>
+              ) : (
+                <span />
+              )}
             </div>
-            <span className="text-right text-[11px] font-mono font-semibold text-[#203830] dark:text-dark-200">
-              {remaining == null ? '未知' : `${remaining}%`}
-            </span>
           </div>
         );
       })}
@@ -250,6 +281,8 @@ export default function AccountsPage() {
   const [modelInputs, setModelInputs] = useState<Record<number, string>>({});
   const [baselineModels, setBaselineModels] = useState<Record<number, string[]>>({});
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  const [usageAnchorMs, setUsageAnchorMs] = useState(() => Date.now());
   const addToast = useToastStore((s) => s.addToast);
 
   // ---- 筛选 ----
@@ -258,6 +291,11 @@ export default function AccountsPage() {
   const [filterPlatform, setFilterPlatform] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   // ---- 基础字段 ----
   const [name, setName] = useState('');
@@ -427,6 +465,7 @@ export default function AccountsPage() {
     try {
       const { data } = await accountsApi.list();
       setAccounts(data.accounts ?? []);
+      setUsageAnchorMs(Date.now());
     } catch {
       addToast({ type: 'error', message: '加载账号失败' });
     }
@@ -805,8 +844,8 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-15rem)] min-h-[600px] flex-col gap-4 overflow-hidden">
-      <div className="shrink-0 rounded-[1.1rem] border border-[#D4E2DC] bg-[#F7FAF6] p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
+    <div className="min-w-0 space-y-4 overflow-x-hidden">
+      <div className="rounded-[1.1rem] border border-[#D8D5CC] bg-white/72 p-3 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
             <div className="relative md:w-64">
@@ -853,7 +892,7 @@ export default function AccountsPage() {
             </span>
             {hasFilters && (
               <button
-                className="text-sm font-semibold text-[#007C86] transition-colors hover:text-[#005F66] dark:text-cyan-300 dark:hover:text-cyan-200"
+                className="text-sm font-semibold text-[#8A6235] transition-colors hover:text-[#6F512D] dark:text-[#D8BE96] dark:hover:text-[#E7D0AA]"
                 onClick={clearFilters}
               >
                 清除筛选
@@ -863,15 +902,15 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.2rem] border border-[#D4E2DC] bg-[#FBFDF9] shadow-sm dark:border-white/10 dark:bg-[#101A18]">
-        <div className="border-b border-[#DCE8E2] bg-[#F1F7F3] px-5 py-4 dark:border-white/10 dark:bg-white/[0.035]">
+      <div className="min-w-0 overflow-hidden rounded-[1.2rem] border border-[#D8D5CC] bg-white/78 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-white/[0.035]">
+        <div className="border-b border-[#E0DED7] bg-[#FBFBFA]/76 px-5 py-4 dark:border-white/10 dark:bg-white/[0.035]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-black text-[#10251F] dark:text-white">账号列表</h2>
-              <p className="mt-0.5 text-xs text-[#657871] dark:text-dark-400">查看账号状态、模型配置和调度参数。</p>
+              <h2 className="text-sm font-black text-[#101418] dark:text-white">账号列表</h2>
+              <p className="mt-0.5 text-xs text-[#6D737C] dark:text-dark-400">查看账号状态、模型配置和调度参数。</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="rounded-full border border-[#D4E2DC] bg-white px-2.5 py-1 text-xs font-semibold text-[#52665F] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
+              <span className="rounded-full border border-[#D8D5CC] bg-white px-2.5 py-1 text-xs font-semibold text-[#59616A] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
                 {filteredAccounts.length} / {accounts.length}
               </span>
               <Button variant="secondary" size="sm" onClick={handleOpenOAuthModal}>
@@ -898,8 +937,8 @@ export default function AccountsPage() {
             <p className="text-sm">{hasFilters ? '没有匹配的账号' : '暂无账号，点击右上角"添加账号"开始'}</p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto">
-            <div className="divide-y divide-gray-100 dark:divide-dark-700">
+          <div className="overflow-x-hidden">
+            <div className="divide-y divide-[#D8D5CC] dark:divide-white/10">
               {filteredAccounts.map((a) => {
                 const supportedModels = parseSupportedModels(a);
                 const protocols = parseProtocolsArray(a.supportedProtocols);
@@ -914,11 +953,11 @@ export default function AccountsPage() {
                 return (
                   <div
                     key={a.id}
-                    className="grid grid-cols-1 gap-3 border-l-[3px] border-l-transparent px-4 py-4 transition-[background-color,border-color] hover:border-l-[#00A6B2] hover:bg-[#F3F8F4] dark:hover:bg-white/[0.035] md:grid-cols-2 xl:grid-cols-[minmax(260px,1.3fr)_minmax(150px,0.8fr)_minmax(210px,1fr)_minmax(150px,0.7fr)_minmax(210px,auto)] xl:items-center xl:gap-4 xl:px-5 xl:py-3"
+                    className="grid grid-cols-1 gap-3 border-l-[3px] border-l-transparent px-4 py-4 transition-[background-color,border-color] hover:border-l-[#A77A45] hover:bg-[#FAF8F2]/70 dark:hover:bg-white/[0.035] md:grid-cols-2 xl:grid-cols-[minmax(260px,1.3fr)_minmax(150px,0.8fr)_minmax(230px,1fr)_minmax(190px,0.82fr)_minmax(210px,auto)] xl:items-center xl:gap-4 xl:px-5 xl:py-3"
                   >
                     <div className="min-w-0">
                       <div className="flex min-w-0 items-center gap-2">
-                        <h3 className="truncate text-sm font-black text-[#10251F] dark:text-white">{a.name}</h3>
+                        <h3 className="truncate text-sm font-black text-[#101418] dark:text-white">{a.name}</h3>
                         <span className="shrink-0 text-[11px] font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
                       </div>
                       <div className="mt-1 flex flex-wrap items-center gap-1.5">
@@ -932,13 +971,13 @@ export default function AccountsPage() {
                       </div>
                     </div>
 
-                    <div className="text-xs text-[#657871] dark:text-dark-400">
-                      <p><span className="font-semibold text-[#203830] dark:text-dark-200">并发</span> {a.concurrency ?? 3}</p>
-                      <p className="mt-1"><span className="font-semibold text-[#203830] dark:text-dark-200">优先级</span> {a.priority ?? 50}</p>
+                    <div className="text-xs text-[#6D737C] dark:text-dark-400">
+                      <p><span className="font-semibold text-[#101418] dark:text-dark-200">并发</span> {a.concurrency ?? 3}</p>
+                      <p className="mt-1"><span className="font-semibold text-[#101418] dark:text-dark-200">优先级</span> {a.priority ?? 50}</p>
                     </div>
 
                     <div className="min-w-0">
-                      <p className="truncate text-xs font-semibold text-[#203830] dark:text-dark-200">{modelLabel}</p>
+                      <p className="truncate text-xs font-semibold text-[#101418] dark:text-dark-200">{modelLabel}</p>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {protocols.length === 0 ? (
                           <span className="text-xs text-gray-400 dark:text-dark-500">协议不限</span>
@@ -953,11 +992,11 @@ export default function AccountsPage() {
                       </div>
                     </div>
 
-                    <div className="min-w-0 text-xs text-[#657871] dark:text-dark-400">
+                    <div className="min-w-0 text-xs text-[#6D737C] dark:text-dark-400">
                       {usage?.kind === 'legacy' ? (
-                        <p className="truncate text-xs text-[#657871] dark:text-dark-400">Legacy 用量</p>
+                        <p className="truncate text-xs text-[#6D737C] dark:text-dark-400">Legacy 用量</p>
                       ) : (
-                        <AccountUsageBars windows={codexWindows} />
+                        <AccountUsageBars windows={codexWindows} nowMs={nowMs} anchorMs={usageAnchorMs} />
                       )}
                       <p className="mt-1 truncate">最近 {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : '暂无记录'}</p>
                     </div>
