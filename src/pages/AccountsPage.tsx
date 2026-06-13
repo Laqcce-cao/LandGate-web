@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { accountsApi, type Account } from '../api/admin/accounts';
+import { groupsApi } from '../api/admin/groups';
 import { modelPricesApi } from '../api/admin/model-prices';
 import { oauthApi } from '../api/admin/oauth';
 import { Button } from '../components/ui/Button';
@@ -29,66 +30,39 @@ const parseJsonSafe = (raw: unknown): Record<string, unknown> => {
 
 // ---- Rate Limit 相关 ----
 
-const formatTimeUntil = (resetIso: string): string => {
-  const reset = new Date(resetIso);
-  const diffMs = reset.getTime() - Date.now();
-  if (diffMs <= 0) return '正在刷新';
-  const hours = Math.floor(diffMs / 3600000);
-  const minutes = Math.floor((diffMs % 3600000) / 60000);
-  if (hours > 24) {
-    const days = Math.floor(hours / 24);
-    return `${days}天${hours % 24}小时后刷新`;
+function AccountUsageBars({ windows }: { windows: CodexUsageWindow[] }) {
+  if (windows.length === 0) {
+    return <p className="truncate text-xs text-[#657871] dark:text-dark-400">无用量窗口</p>;
   }
-  if (hours > 0) return `${hours}小时${minutes}分钟后刷新`;
-  return `${minutes}分钟后刷新`;
-};
-
-const formatResetAt = (resetIso: string | null): string => {
-  if (!resetIso) return '未知';
-  return new Date(resetIso).toLocaleString();
-};
-
-const codexBarColor = (usedPercent: number | null): string => {
-  if (usedPercent == null) return 'bg-gray-300 dark:bg-dark-600';
-  if (usedPercent > 90) return 'bg-red-500';
-  if (usedPercent > 70) return 'bg-amber-500';
-  return 'bg-emerald-500';
-};
-
-function CodexUsageWindowCard({ window }: { window: CodexUsageWindow }) {
-  const usedPercent = window.usedPercent;
-  const width = usedPercent == null ? 0 : Math.min(Math.max(usedPercent, 0), 100);
 
   return (
-    <div className="rounded-lg border border-gray-100 px-4 py-3 dark:border-dark-700">
-      <div className="mb-2 flex items-center justify-between gap-3">
-        <div>
-          <p className="text-sm font-semibold text-gray-800 dark:text-dark-200">{window.label} 窗口</p>
-          <p className="mt-0.5 text-xs text-gray-400 dark:text-dark-500">
-            {window.windowMinutes ? `${window.windowMinutes} 分钟` : '窗口时长未知'} · {window.scope}
-          </p>
-        </div>
-        <div className="text-right text-xs text-gray-500 dark:text-dark-400">
-          {usedPercent == null ? (
-            <span className="font-medium text-gray-400">用量未知</span>
-          ) : (
-            <>
-              <span className="font-semibold text-gray-900 dark:text-white">已用 {usedPercent}%</span>
-              <span className="ml-1">剩余 {window.remainingPercent ?? Math.max(0, 100 - usedPercent)}%</span>
-            </>
-          )}
-        </div>
-      </div>
-      <div className="h-2.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
-        <div
-          className={`h-full rounded-full transition-all duration-500 ${codexBarColor(usedPercent)}`}
-          style={{ width: `${width}%` }}
-        />
-      </div>
-      <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-gray-400 dark:text-dark-500">
-        <span>刷新时间：{formatResetAt(window.resetAt)}</span>
-        {window.resetAt && <span>{formatTimeUntil(window.resetAt)}</span>}
-      </div>
+    <div className="space-y-1.5">
+      {windows.slice(0, 2).map((window) => {
+        const remaining = window.usedPercent == null ? null : window.remainingPercent ?? Math.max(0, 100 - window.usedPercent);
+        const width = remaining == null ? 0 : Math.min(Math.max(remaining, 0), 100);
+        const barColor = remaining == null
+          ? 'bg-gray-300 dark:bg-dark-600'
+          : remaining <= 10
+            ? 'bg-red-500'
+            : remaining <= 30
+              ? 'bg-amber-500'
+              : 'bg-[#00A6B2]';
+
+        return (
+          <div key={`${window.label}-${window.scope}`} className="grid grid-cols-[2.3rem_1fr_2.5rem] items-center gap-2">
+            <span className="truncate text-[11px] font-semibold text-[#52665F] dark:text-dark-400">{window.label}</span>
+            <div className="h-1.5 overflow-hidden rounded-full bg-[#DDE9E3] dark:bg-white/10">
+              <div
+                className={`h-full rounded-full transition-[width,background-color] duration-500 ${barColor}`}
+                style={{ width: `${width}%` }}
+              />
+            </div>
+            <span className="text-right text-[11px] font-mono font-semibold text-[#203830] dark:text-dark-200">
+              {remaining == null ? '未知' : `${remaining}%`}
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -146,56 +120,6 @@ const PLATFORM_COLORS: Record<string, string> = {
   gemini: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   antigravity: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
 };
-
-const STAT_COLORS = {
-  violet: {
-    bg: 'bg-violet-50 dark:bg-violet-900/20',
-    text: 'text-violet-600 dark:text-violet-400',
-    ring: 'ring-violet-100 dark:ring-violet-900/30',
-  },
-  emerald: {
-    bg: 'bg-emerald-50 dark:bg-emerald-900/20',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    ring: 'ring-emerald-100 dark:ring-emerald-900/30',
-  },
-  amber: {
-    bg: 'bg-amber-50 dark:bg-amber-900/20',
-    text: 'text-amber-600 dark:text-amber-400',
-    ring: 'ring-amber-100 dark:ring-amber-900/30',
-  },
-  red: {
-    bg: 'bg-red-50 dark:bg-red-900/20',
-    text: 'text-red-600 dark:text-red-400',
-    ring: 'ring-red-100 dark:ring-red-900/30',
-  },
-};
-
-function AccountStatCard({
-  icon,
-  label,
-  value,
-  color,
-}: {
-  icon: React.ComponentProps<typeof Icon>['name'];
-  label: string;
-  value: number;
-  color: keyof typeof STAT_COLORS;
-}) {
-  const c = STAT_COLORS[color];
-  return (
-    <div className="rounded-2xl border border-gray-100/80 bg-white p-3 shadow-sm dark:border-dark-700/50 dark:bg-dark-800">
-      <div className="flex items-center gap-2.5">
-        <div className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 ${c.bg} ${c.text} ${c.ring}`}>
-          <Icon name={icon} size="sm" />
-        </div>
-        <div className="min-w-0">
-          <p className="text-xl font-bold leading-tight text-gray-900 dark:text-white">{value}</p>
-          <p className="text-[11px] font-medium text-gray-500 dark:text-dark-400">{label}</p>
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function FormSection({
   icon,
@@ -318,6 +242,11 @@ export default function AccountsPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Account | null>(null);
   const [drawerAccount, setDrawerAccount] = useState<Account | null>(null);
+  const [bulkModelModal, setBulkModelModal] = useState(false);
+  const [bulkModel, setBulkModel] = useState('');
+  const [bulkMode, setBulkMode] = useState<'append' | 'replace'>('append');
+  const [bulkAccountIds, setBulkAccountIds] = useState<Set<number>>(new Set());
+  const [bulkSaving, setBulkSaving] = useState(false);
   const [modelInputs, setModelInputs] = useState<Record<number, string>>({});
   const [baselineModels, setBaselineModels] = useState<Record<number, string[]>>({});
   const [modelOptions, setModelOptions] = useState<{ value: string; label: string }[]>([]);
@@ -329,17 +258,6 @@ export default function AccountsPage() {
   const [filterPlatform, setFilterPlatform] = useState('');
   const [filterType, setFilterType] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
-
-  // ---- 折叠/展开 ----
-  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-
-  const toggleExpand = (id: number) => {
-    setExpandedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
 
   // ---- 基础字段 ----
   const [name, setName] = useState('');
@@ -659,12 +577,83 @@ export default function AccountsPage() {
   const handleDelete = async () => {
     if (!deleteTarget) return;
     try {
+      const { data } = await groupsApi.list();
+      const groups = data.groups ?? [];
+      await Promise.all(
+        groups.map(async (group) => {
+          try {
+            await groupsApi.unbindAccount(group.id, deleteTarget.id);
+          } catch {
+            // Ignore missing bindings; delete still proceeds.
+          }
+        }),
+      );
       await accountsApi.delete(deleteTarget.id);
-      addToast({ type: 'success', message: '账号已删除' });
+      addToast({ type: 'success', message: '账号已删除，相关分组绑定已同步清理' });
       setDeleteTarget(null);
       fetchAccounts();
     } catch {
       addToast({ type: 'error', message: '删除失败' });
+    }
+  };
+
+  const openBulkModel = () => {
+    setBulkModel('');
+    setBulkMode('append');
+    setBulkAccountIds(new Set(accounts.map((account) => account.id)));
+    setBulkModelModal(true);
+  };
+
+  const toggleBulkAccount = (id: number) => {
+    setBulkAccountIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const saveBulkModel = async () => {
+    const model = bulkModel.trim();
+    const targets = accounts.filter((account) => bulkAccountIds.has(account.id));
+    if (!model || targets.length === 0) return;
+    setBulkSaving(true);
+    const previous = new Map(targets.map((account) => [account.id, account.supportedModels]));
+    try {
+      await Promise.all(targets.map((account) => {
+        const current = parseSupportedModels(account);
+        const next = model === '*'
+          ? ['*']
+          : bulkMode === 'replace'
+          ? [model]
+          : current.includes('*') || current.includes(model)
+            ? current
+            : [...current, model];
+        return accountsApi.update(account.id, { supportedModels: JSON.stringify(next) });
+      }));
+      setAccounts((prev) => prev.map((account) => {
+        if (!bulkAccountIds.has(account.id)) return account;
+        const current = parseSupportedModels(account);
+        const next = model === '*'
+          ? ['*']
+          : bulkMode === 'replace'
+          ? [model]
+          : current.includes('*') || current.includes(model)
+            ? current
+            : [...current, model];
+        return { ...account, supportedModels: JSON.stringify(next) };
+      }));
+      addToast({ type: 'success', message: `已同步模型到 ${targets.length} 个账号` });
+      setBulkModelModal(false);
+    } catch {
+      setAccounts((prev) => prev.map((account) => (
+        previous.has(account.id)
+          ? { ...account, supportedModels: previous.get(account.id) ?? undefined }
+          : account
+      )));
+      addToast({ type: 'error', message: '批量同步失败' });
+    } finally {
+      setBulkSaving(false);
     }
   };
 
@@ -801,20 +790,6 @@ export default function AccountsPage() {
     });
   }, [accounts, search, filterPlatform, filterType, filterStatus]);
 
-  /* ─── 统计 ─── */
-  const stats = useMemo(() => {
-    const byPlatform: Record<string, number> = {};
-    let active = 0, disabled = 0, schedulableCount = 0;
-    accounts.forEach((a) => {
-      const normalizedPlatform = normalizePlatform(a.platform);
-      byPlatform[normalizedPlatform] = (byPlatform[normalizedPlatform] ?? 0) + 1;
-      if (a.status === 'ACTIVE') active++;
-      else disabled++;
-      if (a.schedulable) schedulableCount++;
-    });
-    return { byPlatform, active, disabled, schedulable: schedulableCount };
-  }, [accounts]);
-
   const handleSearchKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') setSearch(searchInput.trim());
   };
@@ -830,15 +805,8 @@ export default function AccountsPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-7rem)] min-h-0 flex-col gap-4 overflow-hidden">
-      <div className="grid shrink-0 grid-cols-2 gap-3 xl:grid-cols-4">
-        <AccountStatCard icon="server" label="账号总数" value={accounts.length} color="violet" />
-        <AccountStatCard icon="checkCircle" label="活跃账号" value={stats.active} color="emerald" />
-        <AccountStatCard icon="play" label="可调度" value={stats.schedulable} color="amber" />
-        <AccountStatCard icon="ban" label="已禁用" value={stats.disabled} color="red" />
-      </div>
-
-      <div className="card shrink-0 p-3">
+    <div className="flex h-[calc(100vh-15rem)] min-h-[600px] flex-col gap-4 overflow-hidden">
+      <div className="shrink-0 rounded-[1.1rem] border border-[#D4E2DC] bg-[#F7FAF6] p-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
         <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex min-w-0 flex-1 flex-col gap-3 md:flex-row md:flex-wrap md:items-center">
             <div className="relative md:w-64">
@@ -885,7 +853,7 @@ export default function AccountsPage() {
             </span>
             {hasFilters && (
               <button
-                className="text-sm font-medium text-violet-600 transition-colors hover:text-violet-700 dark:text-violet-400 dark:hover:text-violet-300"
+                className="text-sm font-semibold text-[#007C86] transition-colors hover:text-[#005F66] dark:text-cyan-300 dark:hover:text-cyan-200"
                 onClick={clearFilters}
               >
                 清除筛选
@@ -895,19 +863,22 @@ export default function AccountsPage() {
         </div>
       </div>
 
-      <div className="card flex min-h-0 flex-1 flex-col overflow-hidden">
-        <div className="border-b border-gray-100 px-5 py-4 dark:border-dark-700">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-[1.2rem] border border-[#D4E2DC] bg-[#FBFDF9] shadow-sm dark:border-white/10 dark:bg-[#101A18]">
+        <div className="border-b border-[#DCE8E2] bg-[#F1F7F3] px-5 py-4 dark:border-white/10 dark:bg-white/[0.035]">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">账号列表</h2>
-              <p className="mt-0.5 text-xs text-gray-500 dark:text-dark-400">查看账号状态、模型配置和调度参数。</p>
+              <h2 className="text-sm font-black text-[#10251F] dark:text-white">账号列表</h2>
+              <p className="mt-0.5 text-xs text-[#657871] dark:text-dark-400">查看账号状态、模型配置和调度参数。</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+              <span className="rounded-full border border-[#D4E2DC] bg-white px-2.5 py-1 text-xs font-semibold text-[#52665F] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
                 {filteredAccounts.length} / {accounts.length}
               </span>
               <Button variant="secondary" size="sm" onClick={handleOpenOAuthModal}>
                 <Icon name="externalLink" size="xs" /> OAuth 授权
+              </Button>
+              <Button variant="secondary" size="sm" onClick={openBulkModel}>
+                <Icon name="sparkles" size="xs" /> 批量模型
               </Button>
               <Button size="sm" onClick={openCreate}>
                 <Icon name="plus" size="xs" /> 添加账号
@@ -916,7 +887,7 @@ export default function AccountsPage() {
           </div>
         </div>
 
-        {/* ── 卡片列表 ── */}
+        {/* ── 横向账号列表 ── */}
         {loading ? (
           <div className="flex items-center justify-center py-24">
             <LoadingSpinner size="xl" />
@@ -927,29 +898,30 @@ export default function AccountsPage() {
             <p className="text-sm">{hasFilters ? '没有匹配的账号' : '暂无账号，点击右上角"添加账号"开始'}</p>
           </div>
         ) : (
-          <div className="min-h-0 flex-1 overflow-auto p-4">
-            <div className="grid grid-cols-1 gap-4 2xl:grid-cols-2">
+          <div className="min-h-0 flex-1 overflow-auto">
+            <div className="divide-y divide-gray-100 dark:divide-dark-700">
               {filteredAccounts.map((a) => {
                 const supportedModels = parseSupportedModels(a);
                 const protocols = parseProtocolsArray(a.supportedProtocols);
                 const usage = parseAccountUsageStatus(a.sessionWindowStatus);
                 const codexWindows = usage?.kind === 'codex' ? usage.windows : [];
-
-                const isExpanded = expandedIds.has(a.id);
+                const modelLabel = supportedModels.length === 0
+                  ? '未配置'
+                  : supportedModels[0] === '*'
+                    ? '全部模型'
+                    : `${supportedModels[0]}${supportedModels.length > 1 ? ` +${supportedModels.length - 1}` : ''}`;
 
                 return (
-                  <article
+                  <div
                     key={a.id}
-                    className="rounded-2xl border border-gray-100 bg-white shadow-sm transition-all hover:border-violet-200 hover:shadow-md dark:border-dark-700 dark:bg-dark-900 dark:hover:border-violet-800/70"
+                    className="grid grid-cols-1 gap-3 border-l-[3px] border-l-transparent px-4 py-4 transition-[background-color,border-color] hover:border-l-[#00A6B2] hover:bg-[#F3F8F4] dark:hover:bg-white/[0.035] md:grid-cols-2 xl:grid-cols-[minmax(260px,1.3fr)_minmax(150px,0.8fr)_minmax(210px,1fr)_minmax(150px,0.7fr)_minmax(210px,auto)] xl:items-center xl:gap-4 xl:px-5 xl:py-3"
                   >
-                    {/* ── 摘要栏（始终可见）── */}
-                    <button
-                      type="button"
-                      onClick={() => toggleExpand(a.id)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left"
-                    >
-                      {/* 平台 + 类型 + 状态 */}
-                      <div className="flex shrink-0 flex-wrap items-center gap-1.5">
+                    <div className="min-w-0">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <h3 className="truncate text-sm font-black text-[#10251F] dark:text-white">{a.name}</h3>
+                        <span className="shrink-0 text-[11px] font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5">
                         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[normalizePlatform(a.platform)] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
                           {platformLabel(a.platform)}
                         </span>
@@ -958,177 +930,61 @@ export default function AccountsPage() {
                         </span>
                         <StatusBadge status={a.status ?? 'ACTIVE'} />
                       </div>
+                    </div>
 
-                      {/* 名称 + ID */}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <h3 className="truncate text-sm font-bold text-gray-900 dark:text-white">{a.name}</h3>
-                          <span className="shrink-0 text-[11px] font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
-                        </div>
-                      </div>
+                    <div className="text-xs text-[#657871] dark:text-dark-400">
+                      <p><span className="font-semibold text-[#203830] dark:text-dark-200">并发</span> {a.concurrency ?? 3}</p>
+                      <p className="mt-1"><span className="font-semibold text-[#203830] dark:text-dark-200">优先级</span> {a.priority ?? 50}</p>
+                    </div>
 
-                      {/* 行内关键指标 */}
-                      <div className="hidden shrink-0 items-center gap-3 text-xs text-gray-400 dark:text-dark-500 sm:flex">
-                        <span className="inline-flex items-center gap-1">
-                          <span className="font-medium text-gray-600 dark:text-dark-300">并发</span>
-                          {a.concurrency ?? 3}
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <span className="font-medium text-gray-600 dark:text-dark-300">优先级</span>
-                          {a.priority ?? 50}
-                        </span>
-                        {(() => {
-                          const models = parseSupportedModels(a);
-                          const label = models.length === 0 ? '未配置' : models[0] === '*' ? '全部' : `${models.length}个`;
-                          return (
-                            <span className="inline-flex items-center gap-1">
-                              <span className="font-medium text-gray-600 dark:text-dark-300">模型</span>
-                              {label}
-                            </span>
-                          );
-                        })()}
-                      </div>
-
-                      {/* 展开/折叠箭头 */}
-                      <div className="shrink-0">
-                        <Icon
-                          name="chevronRight"
-                          size="sm"
-                          className={`text-gray-400 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
-                        />
-                      </div>
-                    </button>
-
-                    {/* ── 展开内容 ── */}
-                    <div
-                      className={`overflow-hidden transition-all duration-200 ease-in-out ${
-                        isExpanded ? 'max-h-[2000px] opacity-100' : 'max-h-0 opacity-0'
-                      }`}
-                    >
-                      <div className="border-t border-gray-100 px-4 pb-4 dark:border-dark-700">
-                        {/* 可调度开关 */}
-                        <div className="mt-3 flex items-center justify-end gap-2 rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 dark:border-dark-700 dark:bg-dark-800/60">
-                          <div className="text-right">
-                            <p className="text-[11px] text-gray-400 dark:text-dark-500">可调度</p>
-                            <p className={`text-xs font-semibold ${a.schedulable ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-dark-500'}`}>
-                              {a.schedulable ? '开启' : '关闭'}
-                            </p>
-                          </div>
-                          <Toggle checked={a.schedulable} onChange={() => handleToggleSchedulable(a)} />
-                        </div>
-
-                        {/* 模型 & 协议能力 */}
-                        <div className="mt-3 grid grid-cols-1 gap-3 lg:grid-cols-2">
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
-                            <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">模型能力</p>
-                            {(!a.supportedModels || a.supportedModels === '' || a.supportedModels === '[]') && (
-                              <span className="inline-flex rounded-full bg-amber-50 px-2.5 py-1 text-xs font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">未配置模型</span>
-                            )}
-                            {supportedModels.length === 1 && supportedModels[0] === '*' && (
-                              <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-900/10 dark:text-blue-400">* 全部模型</span>
-                            )}
-                            {supportedModels.length > 0 && supportedModels[0] !== '*' && (
-                              <div className="flex min-w-0 flex-wrap items-center gap-1.5">
-                                <span className="max-w-full truncate rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-900/10 dark:text-emerald-400">
-                                  {supportedModels[0]}
-                                </span>
-                                {supportedModels.length > 1 && <span className="text-xs text-gray-400 dark:text-dark-500">+{supportedModels.length - 1}</span>}
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="rounded-xl border border-gray-100 bg-gray-50/60 p-3 dark:border-dark-700 dark:bg-dark-800/40">
-                            <p className="mb-2 text-xs font-medium text-gray-400 dark:text-dark-500">协议能力</p>
-                            {protocols.length === 0 ? (
-                              <span className="text-xs text-gray-400 dark:text-dark-500">未限制协议</span>
-                            ) : (
-                              <div className="flex flex-wrap gap-1.5">
-                                {protocols.map((proto) => (
-                                  <span
-                                    key={proto}
-                                    className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
-                                  >
-                                    {proto}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* 并发 / 优先级 / 最近使用 */}
-                        <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
-                            <p className="text-[11px] text-gray-400 dark:text-dark-500">并发</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">{a.concurrency ?? 3}</p>
-                          </div>
-                          <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700">
-                            <p className="text-[11px] text-gray-400 dark:text-dark-500">优先级</p>
-                            <p className="text-sm font-bold text-gray-900 dark:text-white">{a.priority ?? 50}</p>
-                          </div>
-                          <div className="rounded-xl border border-gray-100 px-3 py-2 dark:border-dark-700 sm:col-span-2">
-                            <p className="text-[11px] text-gray-400 dark:text-dark-500">最近使用</p>
-                            <p className="truncate text-xs font-medium text-gray-600 dark:text-dark-300">
-                              {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : '暂无记录'}
-                            </p>
-                          </div>
-                        </div>
-
-                        {/* Codex 限额 */}
-                        {codexWindows.length > 0 && (
-                          <div className="mt-3 rounded-xl border border-violet-100 bg-violet-50/50 p-3 dark:border-violet-900/30 dark:bg-violet-900/10">
-                            <div className="mb-2 flex items-center justify-between gap-2">
-                              <p className="text-xs font-semibold text-violet-700 dark:text-violet-300">Codex 限额</p>
-                              {usage?.kind === 'codex' && usage.activeLimit && (
-                                <span className="rounded-full bg-white/80 px-2 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/30 dark:text-violet-300">
-                                  {usage.activeLimit}
-                                </span>
-                              )}
-                            </div>
-                            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                              {codexWindows.map((window) => (
-                                <div key={`${window.label}-${window.scope}`} className="rounded-lg bg-white px-3 py-2 dark:bg-dark-800/70">
-                                  <div className="mb-1 flex items-center justify-between text-xs">
-                                    <span className="font-semibold text-gray-700 dark:text-dark-200">{window.label}</span>
-                                    <span className="text-gray-500 dark:text-dark-400">
-                                      {window.usedPercent == null ? '用量未知' : `剩余 ${window.remainingPercent ?? Math.max(0, 100 - window.usedPercent)}%`}
-                                    </span>
-                                  </div>
-                                  <div className="h-1.5 overflow-hidden rounded-full bg-gray-100 dark:bg-dark-700">
-                                    <div
-                                      className={`h-full rounded-full ${codexBarColor(window.usedPercent)}`}
-                                      style={{ width: `${window.usedPercent == null ? 0 : Math.min(Math.max(window.usedPercent, 0), 100)}%` }}
-                                    />
-                                  </div>
-                                  <p className="mt-1.5 text-[11px] text-gray-400 dark:text-dark-500">
-                                    {window.resetAt ? formatTimeUntil(window.resetAt) : '刷新时间未知'}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 操作按钮 */}
-                        <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-gray-100 pt-3 dark:border-dark-700">
-                          <Button variant="secondary" size="sm" onClick={() => setDrawerAccount(a)}>
-                            <Icon name="cog" size="xs" /> 模型配置
-                          </Button>
-                          {a.type === 'oauth' && (
-                            <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)}>
-                              <Icon name="refresh" size="xs" /> 刷新 Token
-                            </Button>
-                          )}
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(a)}>
-                            <Icon name="edit" size="xs" /> 编辑
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)}>
-                            <Icon name="trash" size="xs" className="text-red-500" /> 删除
-                          </Button>
-                        </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-xs font-semibold text-[#203830] dark:text-dark-200">{modelLabel}</p>
+                      <div className="mt-1 flex flex-wrap gap-1">
+                        {protocols.length === 0 ? (
+                          <span className="text-xs text-gray-400 dark:text-dark-500">协议不限</span>
+                        ) : protocols.map((proto) => (
+                          <span
+                            key={proto}
+                            className={`inline-flex items-center rounded px-2 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
+                          >
+                            {proto}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  </article>
+
+                    <div className="min-w-0 text-xs text-[#657871] dark:text-dark-400">
+                      {usage?.kind === 'legacy' ? (
+                        <p className="truncate text-xs text-[#657871] dark:text-dark-400">Legacy 用量</p>
+                      ) : (
+                        <AccountUsageBars windows={codexWindows} />
+                      )}
+                      <p className="mt-1 truncate">最近 {a.lastUsedAt ? new Date(a.lastUsedAt).toLocaleString() : '暂无记录'}</p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2 md:col-span-2 xl:col-span-1 xl:justify-end">
+                      <div className="mr-1 flex items-center gap-2">
+                        <span className={`text-xs font-medium ${a.schedulable ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400 dark:text-dark-500'}`}>
+                          {a.schedulable ? '可调度' : '停用'}
+                        </span>
+                        <Toggle checked={a.schedulable} onChange={() => handleToggleSchedulable(a)} ariaLabel={`${a.name} 调度状态`} />
+                      </div>
+                      <Button variant="secondary" size="sm" onClick={() => setDrawerAccount(a)}>
+                        <Icon name="cog" size="xs" /> 模型
+                      </Button>
+                      {a.type === 'oauth' && (
+                        <Button variant="ghost" size="sm" onClick={() => handleRefreshToken(a)} aria-label={`刷新 ${a.name} Token`}>
+                          <Icon name="refresh" size="xs" />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="sm" onClick={() => openEdit(a)} aria-label={`编辑账号 ${a.name}`}>
+                        <Icon name="edit" size="xs" />
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(a)} aria-label={`删除账号 ${a.name}`}>
+                        <Icon name="trash" size="xs" className="text-red-500" />
+                      </Button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
@@ -1299,6 +1155,99 @@ export default function AccountsPage() {
         </div>
       </Modal>
 
+      {/* ═══ Bulk Model Sync Modal ═══ */}
+      <Modal
+        open={bulkModelModal}
+        onClose={() => setBulkModelModal(false)}
+        title="批量同步模型到账号"
+        width="wide"
+        footer={
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setBulkModelModal(false)}>取消</Button>
+            <Button onClick={saveBulkModel} loading={bulkSaving} disabled={!bulkModel.trim() || bulkAccountIds.size === 0}>
+              同步
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 gap-3 md:grid-cols-[1fr_180px]">
+            <div>
+              <label className="input-label">模型</label>
+              <Select
+                options={[
+                  { value: '*', label: '全部模型（通配符 *）' },
+                  ...modelOptions,
+                ]}
+                value={bulkModel}
+                onChange={setBulkModel}
+                placeholder="选择要同步的模型..."
+                searchable
+                emptyText="无匹配模型"
+              />
+            </div>
+            <div>
+              <label className="input-label">写入方式</label>
+              <Select
+                options={[
+                  { value: 'append', label: '追加到账号' },
+                  { value: 'replace', label: '覆盖账号模型' },
+                ]}
+                value={bulkMode}
+                onChange={(value) => setBulkMode(value === 'replace' ? 'replace' : 'append')}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-100 dark:border-dark-700">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-gray-100 px-4 py-3 dark:border-dark-700">
+              <div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">目标账号</p>
+                <p className="mt-0.5 text-xs text-gray-500 dark:text-dark-400">已选择 {bulkAccountIds.size} / {accounts.length}</p>
+              </div>
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setBulkAccountIds(new Set(accounts.map((account) => account.id)))}>
+                  全选
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setBulkAccountIds(new Set())}>
+                  清空
+                </Button>
+              </div>
+            </div>
+            <div className="max-h-[360px] divide-y divide-gray-100 overflow-auto dark:divide-dark-700">
+              {accounts.map((account) => {
+                const models = parseSupportedModels(account);
+                const selected = bulkAccountIds.has(account.id);
+                const modelLabel = models.length === 0 ? '未配置' : models[0] === '*' ? '全部模型' : `${models.length} 个模型`;
+                return (
+                  <label
+                    key={account.id}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-gray-50 dark:hover:bg-dark-800/50"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      onChange={() => toggleBulkAccount(account.id)}
+                      className="h-4 w-4 rounded border-gray-300 text-violet-600 focus:ring-violet-500"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">{account.name}</span>
+                        <span className="text-[11px] font-mono text-gray-400">#{account.id}</span>
+                      </div>
+                      <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-dark-400">
+                        {platformLabel(account.platform)} · {account.type} · {modelLabel}
+                      </p>
+                    </div>
+                    <StatusBadge status={account.status ?? 'ACTIVE'} />
+                  </label>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Modal>
+
       {/* ═══ OAuth Authorization Modal ═══ */}
       <Modal
         open={oauthModalOpen}
@@ -1466,18 +1415,6 @@ export default function AccountsPage() {
           return (
             <div className="space-y-5">
               <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
-                  <span className="text-sm font-semibold text-gray-900 dark:text-white">{a.name}</span>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[normalizePlatform(a.platform)] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {platformLabel(a.platform)}
-                  </span>
-                  <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-dark-800 dark:text-dark-300">{a.type}</span>
-                  <StatusBadge status={a.status ?? 'ACTIVE'} />
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
                 <div className="mb-3 flex items-start justify-between gap-3">
                   <div>
                     <h3 className="text-sm font-semibold text-gray-900 dark:text-white">当前策略</h3>
@@ -1534,11 +1471,12 @@ export default function AccountsPage() {
                               {baseline.map((m) => (
                                 <div key={m} className="flex items-center justify-between px-4 py-2.5">
                                   <span className="text-sm text-gray-600 dark:text-gray-400">{m}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => setBaselineModels((prev) => ({ ...prev, [a.id]: (prev[a.id] ?? []).filter((x) => x !== m) }))}
-                                    className="text-gray-300 transition-colors hover:text-red-500"
-                                  >
+	                                  <button
+	                                    type="button"
+	                                    onClick={() => setBaselineModels((prev) => ({ ...prev, [a.id]: (prev[a.id] ?? []).filter((x) => x !== m) }))}
+	                                    className="text-gray-300 transition-colors hover:text-red-500"
+                                      aria-label={`移除待恢复模型 ${m}`}
+	                                  >
                                     <Icon name="x" size="xs" />
                                   </button>
                                 </div>
@@ -1557,11 +1495,12 @@ export default function AccountsPage() {
                             <span className="text-xs font-bold">{i + 1}</span>
                           </div>
                           <span className="flex-1 truncate text-sm font-medium text-gray-700 dark:text-dark-300">{m}</span>
-                          <button
-                            type="button"
-                            onClick={() => removeSupportedModel(a.id, m)}
-                            className="shrink-0 rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
-                          >
+	                          <button
+	                            type="button"
+	                            onClick={() => removeSupportedModel(a.id, m)}
+	                            className="shrink-0 rounded-lg p-1.5 text-gray-300 transition-colors hover:bg-red-50 hover:text-red-500 dark:hover:bg-red-900/20"
+                              aria-label={`移除支持模型 ${m}`}
+	                          >
                             <Icon name="trash" size="xs" />
                           </button>
                         </div>
@@ -1595,125 +1534,6 @@ export default function AccountsPage() {
                 </div>
               </div>
 
-              {/* 上游协议 */}
-              {(() => {
-                const protocols = parseProtocolsArray(a.supportedProtocols);
-                if (protocols.length === 0) return null;
-                return (
-                  <>
-                    <div className="border-t border-gray-100 dark:border-dark-700" />
-                    <div>
-                      <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">
-                        <Icon name="externalLink" size="sm" className="inline mr-1.5 text-violet-500" />
-                        上游协议支持
-                      </h3>
-                      <div className="flex flex-wrap gap-2">
-                        {protocols.map((proto) => (
-                          <span
-                            key={proto}
-                            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}
-                          >
-                            {proto}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-
-              {/* 混合调度 */}
-              {(a.mixedScheduling ?? false) && (
-                <>
-                  <div className="border-t border-gray-100 dark:border-dark-700" />
-                  <div>
-                    <h3 className="mb-2 text-sm font-semibold text-gray-700 dark:text-dark-300">
-                      <Icon name="globe" size="sm" className="inline mr-1.5 text-indigo-500" />
-                      混合调度
-                    </h3>
-                    <span className="inline-flex items-center rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400">
-                      已启用跨 Provider 调度
-                    </span>
-                  </div>
-                </>
-              )}
-
-              {/* 分隔 */}
-              <div className="border-t border-gray-100 dark:border-dark-700" />
-
-              {/* 调度参数 */}
-              <div>
-                <h3 className="mb-3 text-sm font-semibold text-gray-700 dark:text-dark-300">
-                  <Icon name="cog" size="sm" className="inline mr-1.5 text-gray-400" />
-                  调度参数
-                </h3>
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
-                    <p className="text-xs text-gray-400 mb-0.5">并发上限</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{a.concurrency ?? 3}</p>
-                  </div>
-                  <div className="rounded-lg border border-gray-200 px-4 py-3 dark:border-dark-600">
-                    <p className="text-xs text-gray-400 mb-0.5">优先级</p>
-                    <p className="text-xl font-bold text-gray-900 dark:text-white">{a.priority ?? 50}</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* OAuth 用量 */}
-              {a.type === 'oauth' && (() => {
-                const status = parseAccountUsageStatus(a.sessionWindowStatus);
-                if (!status) return null;
-                return (
-                  <>
-                    <div className="border-t border-gray-100 dark:border-dark-700" />
-                    <div>
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <h3 className="text-sm font-semibold text-gray-700 dark:text-dark-300">
-                          <Icon name="chartBar" size="sm" className="inline mr-1.5 text-violet-500" />
-                          用量概览
-                        </h3>
-                        {status.kind === 'codex' && status.activeLimit && (
-                          <span className="rounded-full bg-violet-50 px-2.5 py-0.5 text-xs font-medium text-violet-700 dark:bg-violet-900/20 dark:text-violet-300">
-                            {status.activeLimit}
-                          </span>
-                        )}
-                      </div>
-                      <div className="space-y-3">
-                        {status.kind === 'codex' && status.windows.map((window) => (
-                          <CodexUsageWindowCard key={`${window.label}-${window.scope}`} window={window} />
-                        ))}
-
-                        {status.kind === 'legacy' && (['tokens', 'requests'] as const).map((key) => {
-                          const bucket = status.buckets[key];
-                          if (!bucket) return null;
-                          const used = bucket.limit - bucket.remaining;
-                          const pct = bucket.limit > 0 ? Math.round((used / bucket.limit) * 100) : 0;
-                          const barColor = pct > 90 ? 'bg-red-500' : pct > 70 ? 'bg-amber-500' : 'bg-emerald-500';
-                          return (
-                            <div key={key} className="rounded-lg border border-gray-100 px-4 py-3 dark:border-dark-700">
-                              <div className="flex items-center justify-between text-sm mb-2">
-                                <span className="font-medium text-gray-700 dark:text-dark-300 capitalize">{key}</span>
-                                <span className="text-gray-500 dark:text-dark-400">
-                                  <span className="font-semibold text-gray-900 dark:text-white">{used.toLocaleString()}</span>
-                                  <span className="mx-1">/</span>
-                                  {bucket.limit.toLocaleString()}
-                                  {bucket.reset && <span className="ml-2 text-xs text-gray-400">{formatTimeUntil(bucket.reset)}</span>}
-                                </span>
-                              </div>
-                              <div className="h-2.5 rounded-full bg-gray-100 dark:bg-dark-700 overflow-hidden">
-                                <div
-                                  className={`h-full rounded-full transition-all duration-500 ${barColor}`}
-                                  style={{ width: `${Math.min(pct, 100)}%` }}
-                                />
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
             </div>
           );
         })()}

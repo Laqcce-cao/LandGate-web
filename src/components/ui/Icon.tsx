@@ -80,8 +80,10 @@ export function Icon({ name, size = 'md', strokeWidth = 1.5, className }: IconPr
 
   return (
     <svg
+      aria-hidden="true"
       className={clsx(sizeMap[size], className)}
       fill="none"
+      focusable="false"
       viewBox="0 0 24 24"
       stroke="currentColor"
       strokeWidth={strokeWidth}

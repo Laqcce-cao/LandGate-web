@@ -11,13 +11,11 @@ import DashboardPage from '../pages/DashboardPage';
 import CheckinPage from '../pages/CheckinPage';
 import AdminDashboardPage from '../pages/AdminDashboardPage';
 import ApiKeysPage from '../pages/ApiKeysPage';
-import AccountsPage from '../pages/AccountsPage';
 import OAuthCallbackPage from '../pages/OAuthCallbackPage';
-import GroupsPage from '../pages/GroupsPage';
 import UsagePage from '../pages/UsagePage';
 import BalanceTransactionsPage from '../pages/BalanceTransactionsPage';
 import AdminUsagePage from '../pages/AdminUsagePage';
-import ModelPricesPage from '../pages/ModelPricesPage';
+import ChannelManagementPage, { AdminChannelRedirect } from '../pages/ChannelManagementPage';
 import UsersPage from '../pages/admin/UsersPage';
 import ApiKeysAdminPage from '../pages/admin/ApiKeysAdminPage';
 import BalanceTransactionsAdminPage from '../pages/admin/BalanceTransactionsAdminPage';
@@ -110,11 +108,12 @@ export default function AppRouter() {
         <Route element={<AdminGuard />}>
           <Route element={<AppLayout />}>
             <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
-            <Route path="/admin/accounts" element={<AccountsPage />} />
+            <Route path="/admin/channels" element={<ChannelManagementPage />} />
+            <Route path="/admin/accounts" element={<AdminChannelRedirect tab="accounts" />} />
             <Route path="/admin/oauth/callback" element={<OAuthCallbackPage />} />
-            <Route path="/admin/groups" element={<GroupsPage />} />
+            <Route path="/admin/groups" element={<AdminChannelRedirect tab="groups" />} />
             <Route path="/admin/usage" element={<AdminUsagePage />} />
-            <Route path="/admin/model-prices" element={<ModelPricesPage />} />
+            <Route path="/admin/model-prices" element={<AdminChannelRedirect tab="prices" />} />
             <Route path="/admin/users" element={<UsersPage />} />
             <Route path="/admin/balance-transactions" element={<BalanceTransactionsAdminPage />} />
             <Route path="/admin/api-keys" element={<ApiKeysAdminPage />} />

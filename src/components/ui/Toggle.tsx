@@ -5,9 +5,10 @@ interface ToggleProps {
   onChange: (checked: boolean) => void;
   disabled?: boolean;
   label?: string;
+  ariaLabel?: string;
 }
 
-export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
+export function Toggle({ checked, onChange, disabled, label, ariaLabel }: ToggleProps) {
   return (
     <label
       className={clsx(
@@ -19,6 +20,7 @@ export function Toggle({ checked, onChange, disabled, label }: ToggleProps) {
         type="button"
         role="switch"
         aria-checked={checked}
+        aria-label={ariaLabel ?? label}
         className={clsx('switch', checked && 'switch-active')}
         onClick={() => !disabled && onChange(!checked)}
         disabled={disabled}

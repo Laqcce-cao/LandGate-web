@@ -48,7 +48,6 @@ export default function ModelPricesPage() {
   const [saving, setSaving] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<ModelPrice | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [expandedRows, setExpandedRows] = useState<Set<number>>(new Set());
   const addToast = useToastStore((s) => s.addToast);
 
   // ---- 表单状态 ----
@@ -87,14 +86,6 @@ export default function ModelPricesPage() {
       return true;
     });
   }, [prices, searchQuery]);
-
-  const toggleExpand = (id: number) => {
-    setExpandedRows((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
 
   // ---- 判断是否有缓存价格需要展示 ----
   const hasCachePrice = (p: ModelPrice) => {
@@ -216,7 +207,7 @@ export default function ModelPricesPage() {
     <div>
       {/* ── header ── */}
       <div className="mb-4 flex items-center justify-between gap-4">
-        <p className="text-sm text-gray-500 dark:text-dark-400 shrink-0">
+        <p className="shrink-0 text-sm font-medium text-[#63766F] dark:text-dark-400">
           共 {filteredPrices.length} 个模型价格
         </p>
         <div className="flex items-center gap-3 flex-1 max-w-md">
@@ -231,14 +222,87 @@ export default function ModelPricesPage() {
         </Button>
       </div>
 
+      {/* ── mobile rows ── */}
+      <div className="space-y-2 md:hidden">
+        {filteredPrices.length === 0 ? (
+          <div className="card flex flex-col items-center gap-3 py-16 text-center">
+            <Icon name="grid" size="xl" className="text-gray-200 dark:text-dark-700" />
+            <p className="text-sm text-gray-400 dark:text-dark-500">
+              {searchQuery ? '无匹配的模型价格' : '暂无模型价格'}
+            </p>
+          </div>
+        ) : filteredPrices.map((p) => {
+          const showCache = hasCachePrice(p);
+          return (
+            <div key={p.id} className="rounded-[1.1rem] border border-[#D4E2DC] bg-[#FBFDF9] p-4 shadow-sm dark:border-white/10 dark:bg-[#101A18]">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(p)}
+                    className="max-w-full truncate text-left text-sm font-semibold text-gray-900 transition-colors hover:text-violet-600 dark:text-white"
+                  >
+                    {p.model}
+                  </button>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-medium ${billingModeBadge[p.billingMode ?? 'token'] ?? billingModeBadge.token}`}>
+                      {p.billingMode === 'image' ? `图片${p.imageSize ? ` ${p.imageSize}` : ''}` : p.billingMode === 'per_request' ? '按次' : 'Token'}
+                    </span>
+                    {p.wildcardMatch && (
+                      <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:bg-amber-900/20 dark:text-amber-400">
+                        通配
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <Toggle checked={p.enabled ?? true} onChange={() => handleToggleEnabled(p)} ariaLabel={`${p.model} 启用状态`} />
+              </div>
+
+              <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-800">
+                  <p className="text-gray-400 dark:text-dark-500">输入</p>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-dark-200">{fmtPrice(p.inputPrice)}</p>
+                </div>
+                <div className="rounded-lg bg-gray-50 px-3 py-2 dark:bg-dark-800">
+                  <p className="text-gray-400 dark:text-dark-500">输出</p>
+                  <p className="mt-1 font-semibold text-gray-800 dark:text-dark-200">{fmtPrice(p.outputPrice)}</p>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
+                {showCache ? (
+                  <>
+                    <span>缓存写 {fmtPrice(p.cacheWritePrice)}</span>
+                    <span>缓存读 {fmtPrice(p.cacheReadPrice)}</span>
+                    {(p.cacheWrite5mPrice ?? 0) !== 0 && <span>5m {fmtPrice(p.cacheWrite5mPrice)}</span>}
+                    {(p.cacheWrite1hPrice ?? 0) !== 0 && <span>1h {fmtPrice(p.cacheWrite1hPrice)}</span>}
+                  </>
+                ) : (
+                  <span className="text-gray-300 dark:text-dark-600">无缓存价格</span>
+                )}
+                {p.notes && <span className="min-w-0 truncate">备注: {p.notes}</span>}
+              </div>
+
+              <div className="mt-3 flex justify-end gap-1 border-t border-gray-100 pt-3 dark:border-dark-700">
+                <Button variant="ghost" size="sm" onClick={() => openEdit(p)} aria-label={`编辑价格 ${p.model}`}>
+                  <Icon name="edit" size="xs" />
+                </Button>
+                <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(p)} aria-label={`删除价格 ${p.model}`}>
+                  <Icon name="trash" size="xs" className="text-red-500" />
+                </Button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
       {/* ── table ── */}
-      <div className="card overflow-hidden">
+      <div className="hidden overflow-hidden rounded-[1.2rem] border border-[#D4E2DC] bg-[#FBFDF9] shadow-sm dark:border-white/10 dark:bg-[#101A18] md:block">
         <div className="max-h-[60vh] overflow-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 dark:border-dark-700">
-                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500 w-8" />
-                <th className="px-0 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
+                <th className="px-5 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
                   模型
                 </th>
                 <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
@@ -261,7 +325,7 @@ export default function ModelPricesPage() {
             <tbody>
               {filteredPrices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-16 text-center">
+                  <td colSpan={6} className="px-5 py-16 text-center">
                     <Icon name="grid" size="xl" className="mx-auto mb-3 text-gray-200 dark:text-dark-700" />
                     <p className="text-sm text-gray-400 dark:text-dark-500">
                       {searchQuery ? '无匹配的模型价格' : '暂无模型价格'}
@@ -270,59 +334,41 @@ export default function ModelPricesPage() {
                 </tr>
               ) : (
                 filteredPrices.map((p) => {
-                  const open = expandedRows.has(p.id);
                   const showCache = hasCachePrice(p);
                   return (
                     <tr
                       key={p.id}
-                      className="border-b border-gray-50 dark:border-dark-800/50 hover:bg-gray-50/50 dark:hover:bg-dark-800/30 transition-colors"
+                      className="border-b border-gray-50 transition-colors hover:bg-[#F3F8F4] dark:border-dark-800/50 dark:hover:bg-white/[0.035]"
                     >
-                      {/* 展开按钮 */}
+                      {/* 模型 */}
                       <td className="px-5 py-3.5">
                         <button
                           type="button"
-                          onClick={() => toggleExpand(p.id)}
-                          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
-                        >
-                          <Icon name={open ? 'chevronDown' : 'chevronRight'} size="sm" />
-                        </button>
-                      </td>
-
-                      {/* 模型 */}
-                      <td className="px-0 py-3.5">
-                        <button
-                          type="button"
-                          onClick={() => toggleExpand(p.id)}
-                          className="font-medium text-gray-900 dark:text-white hover:text-violet-600 transition-colors text-left"
+                          onClick={() => openEdit(p)}
+                          className="text-left font-black text-[#10251F] transition-colors hover:text-[#007C86] dark:text-white"
                         >
                           {p.model}
                         </button>
-                        {/* 展开行: 缓存价格 + 备注 */}
-                        {open && (
-                          <div className="mt-2 py-2 border-t border-gray-100 dark:border-dark-700">
-                            {showCache && (
-                              <div className="mb-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
-                                <span>缓存写: {fmtPrice(p.cacheWritePrice)}</span>
-                                <span>缓存读: {fmtPrice(p.cacheReadPrice)}</span>
-                                {(p.cacheWrite5mPrice ?? 0) !== 0 && <span>缓存写5m: {fmtPrice(p.cacheWrite5mPrice)}</span>}
-                                {(p.cacheWrite1hPrice ?? 0) !== 0 && <span>缓存写1h: {fmtPrice(p.cacheWrite1hPrice)}</span>}
-                                {p.supportsCacheBreakdown && (
-                                  <span className="rounded bg-violet-100 dark:bg-violet-900/20 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:text-violet-400">
-                                    支持分层
-                                  </span>
-                                )}
-                              </div>
-                            )}
-                            {p.notes && (
-                              <p className="text-xs text-gray-400 dark:text-dark-500 mt-1">
-                                备注: {p.notes}
-                              </p>
-                            )}
-                            {!showCache && !p.notes && (
-                              <p className="text-xs text-gray-300 dark:text-dark-600">无额外信息</p>
-                            )}
-                          </div>
-                        )}
+                        <div className="mt-1 flex max-w-[520px] flex-wrap gap-x-3 gap-y-1 text-xs text-gray-500 dark:text-dark-400">
+                          {showCache ? (
+                            <>
+                              <span>缓存写 {fmtPrice(p.cacheWritePrice)}</span>
+                              <span>缓存读 {fmtPrice(p.cacheReadPrice)}</span>
+                              {(p.cacheWrite5mPrice ?? 0) !== 0 && <span>5m {fmtPrice(p.cacheWrite5mPrice)}</span>}
+                              {(p.cacheWrite1hPrice ?? 0) !== 0 && <span>1h {fmtPrice(p.cacheWrite1hPrice)}</span>}
+                              {p.supportsCacheBreakdown && (
+                                <span className="rounded bg-violet-100 px-1.5 py-0.5 text-[10px] font-medium text-violet-600 dark:bg-violet-900/20 dark:text-violet-400">
+                                  分层
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-gray-300 dark:text-dark-600">无缓存价格</span>
+                          )}
+                          {p.notes && (
+                            <span className="truncate">备注: {p.notes}</span>
+                          )}
+                        </div>
                       </td>
 
                       {/* 计费模式 */}
@@ -350,17 +396,17 @@ export default function ModelPricesPage() {
                       {/* 启用 */}
                       <td className="px-4 py-3.5">
                         <div className="flex justify-center">
-                          <Toggle checked={p.enabled ?? true} onChange={() => handleToggleEnabled(p)} />
+                          <Toggle checked={p.enabled ?? true} onChange={() => handleToggleEnabled(p)} ariaLabel={`${p.model} 启用状态`} />
                         </div>
                       </td>
 
                       {/* 操作 */}
                       <td className="px-5 py-3.5">
                         <div className="flex items-center justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(p)}>
+                          <Button variant="ghost" size="sm" onClick={() => openEdit(p)} aria-label={`编辑价格 ${p.model}`}>
                             <Icon name="edit" size="xs" />
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(p)}>
+                          <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(p)} aria-label={`删除价格 ${p.model}`}>
                             <Icon name="trash" size="xs" className="text-red-500" />
                           </Button>
                         </div>

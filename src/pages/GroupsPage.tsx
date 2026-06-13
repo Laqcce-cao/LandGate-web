@@ -4,6 +4,7 @@ import { accountsApi, type Account } from '../api/admin/accounts';
 import { modelPricesApi } from '../api/admin/model-prices';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
+import { Drawer } from '../components/ui/Drawer';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { StatusBadge } from '../components/ui/StatusBadge';
@@ -25,6 +26,22 @@ const platformBadge: Record<string, string> = {
   anthropic: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   gemini: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   antigravity: 'bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
+};
+
+const providerAccent: Record<string, string> = {
+  openai: '#10B981',
+  openai_responses: '#14B8A6',
+  anthropic: '#F59E0B',
+  gemini: '#3B82F6',
+  antigravity: '#8B5CF6',
+};
+
+const accountDotColor: Record<string, string> = {
+  openai: 'bg-emerald-500',
+  openai_responses: 'bg-teal-500',
+  anthropic: 'bg-amber-500',
+  gemini: 'bg-blue-500',
+  antigravity: 'bg-purple-500',
 };
 
 const PROVIDER_OPTIONS = [
@@ -55,11 +72,11 @@ const parseProtocolsArray = (raw: string | undefined): string[] => {
   }
 };
 
-const PROTOCOL_COLORS: Record<string, string> = {
-  chat_completions: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400',
-  responses: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400',
-  messages: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
-};
+const providerLabel = (value?: string) =>
+  PROVIDER_OPTIONS.find((option) => option.value === value)?.label ?? value ?? 'Anthropic';
+
+const subTypeLabel = (value?: string) =>
+  subTypeOpts.find((option) => option.value === value)?.label.split('（')[0] ?? '标准版';
 
 export default function GroupsPage() {
   const addToast = useToastStore((s) => s.addToast);
@@ -70,16 +87,6 @@ export default function GroupsPage() {
   // accountId -> set of groupIds
   const [bindings, setBindings] = useState<Map<number, Set<number>>>(new Map());
   const [loading, setLoading] = useState(true);
-
-  /* ─── expand state ─── */
-  const [expanded, setExpanded] = useState<Set<number>>(new Set());
-
-  const toggle = (id: number) =>
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
-      return next;
-    });
 
   /* ─── delete confirm ─── */
   const [deleteTarget, setDeleteTarget] = useState<Group | null>(null);
@@ -94,6 +101,7 @@ export default function GroupsPage() {
   const [bindAccountId, setBindAccountId] = useState('');
   const [bindPriority, setBindPriority] = useState('50');
   const [binding, setBinding] = useState(false);
+  const [routeDrawerGroupId, setRouteDrawerGroupId] = useState<number | null>(null);
 
   /* ─── exclude model input per group ─── */
   const [excludeInputs, setExcludeInputs] = useState<Record<number, string>>({});
@@ -330,6 +338,10 @@ export default function GroupsPage() {
     }
   };
 
+  const routeDrawerGroup = routeDrawerGroupId == null
+    ? null
+    : groups.find((group) => group.id === routeDrawerGroupId) ?? null;
+
   /* ─── render ─── */
   if (loading) {
     return (
@@ -340,178 +352,115 @@ export default function GroupsPage() {
   }
 
   return (
-    <div>
+    <div className="flex h-[calc(100vh-15rem)] min-h-[600px] flex-col gap-4 overflow-hidden">
       {/* header */}
-      <div className="mb-4 flex items-center justify-between">
-        <p className="text-sm text-gray-500 dark:text-dark-400">
-          共 {groups.length} 个分组 · {accounts.length} 个号池账号
-        </p>
-        <Button onClick={openCreateGroup}>
-          <Icon name="plus" size="sm" /> 新建分组
-        </Button>
+      <div className="shrink-0 rounded-[1.1rem] border border-[#D4E2DC] bg-[#F7FAF6] px-4 py-3 shadow-sm dark:border-white/10 dark:bg-white/[0.035]">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex min-w-0 flex-wrap items-center gap-2">
+            <span className="rounded-full border border-[#D4E2DC] bg-white px-2.5 py-1 text-xs font-semibold text-[#52665F] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
+              分组 {groups.length}
+            </span>
+            <span className="rounded-full border border-[#D4E2DC] bg-white px-2.5 py-1 text-xs font-semibold text-[#52665F] dark:border-white/10 dark:bg-white/[0.04] dark:text-dark-300">
+              号池账号 {accounts.length}
+            </span>
+          </div>
+          <Button onClick={openCreateGroup} size="sm">
+            <Icon name="plus" size="sm" /> 新建分组
+          </Button>
+        </div>
       </div>
 
-      {/* tree */}
-      <div className="max-h-[60vh] space-y-2 overflow-auto pr-1">
+      {/* rows */}
+      <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden rounded-[1.2rem] border border-[#D4E2DC] bg-[#FBFDF9] shadow-sm dark:border-white/10 dark:bg-[#101A18]">
+        <div className="divide-y divide-[#E2ECE6] dark:divide-white/10">
         {groups.map((g) => {
-          const open = expanded.has(g.id);
           const gAccounts = accountsOfGroup(g.id);
+          const excludedModels = parseExcludedModels(g);
+          const provider = g.provider ?? 'anthropic';
+          const providerCount = new Set(gAccounts.map((account) => account.platform)).size;
 
           return (
-            <div key={g.id} className="card overflow-hidden">
-              {/* ── group header ── */}
-              <button
-                type="button"
-                onClick={() => toggle(g.id)}
-                className="flex w-full items-center gap-3 px-5 py-4 text-left hover:bg-gray-50/50 dark:hover:bg-dark-800/50 transition-colors"
-              >
-                <Icon
-                  name={open ? 'chevronDown' : 'chevronRight'}
-                  size="sm"
-                  className="shrink-0 text-gray-400"
-                />
-                <span className="font-semibold text-gray-900 dark:text-white">{g.name}</span>
-                <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${platformBadge[g.provider ?? 'anthropic'] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                  {g.provider ?? 'anthropic'}
-                </span>
-                <span className="text-xs text-gray-400 dark:text-dark-500">
-                  倍率 ×{g.rateMultiplier ?? 1}
-                </span>
-                {(() => {
-                  const protocols = parseProtocolsArray(g.supportedProtocols);
-                  if (protocols.length === 0) return null;
-                  return (
-                    <span className="flex items-center gap-1">
-                      {protocols.map((proto) => (
-                        <span key={proto} className={`inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium ${PROTOCOL_COLORS[proto] ?? 'bg-gray-100 text-gray-600'}`}>
-                          {proto}
-                        </span>
-                      ))}
+            <div
+              key={g.id}
+              className="w-full min-w-0 overflow-hidden border-l-[3px] px-4 py-4 transition-[background-color,border-color] hover:bg-[#F3F8F4] dark:hover:bg-white/[0.035] xl:px-5 xl:py-3"
+              style={{ borderLeftColor: providerAccent[provider] ?? '#00A6B2' }}
+            >
+              <div className="flex min-w-0 flex-col gap-3 xl:flex-row xl:items-center xl:gap-5">
+                <div className="min-w-0 xl:flex-[1.35_1_0]">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <h3 className="min-w-0 truncate text-sm font-black text-[#10251F] dark:text-white">{g.name}</h3>
+                    <span className="shrink-0 text-[11px] font-mono text-gray-400 dark:text-dark-500">#{g.id}</span>
+                  </div>
+                  <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5">
+                    <span className={`inline-flex max-w-full items-center truncate rounded-full px-2.5 py-0.5 text-xs font-medium ${platformBadge[provider] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                      {providerLabel(provider)}
                     </span>
-                  );
-                })()}
-                <span className="text-xs text-gray-400 dark:text-dark-500">
-                  {gAccounts.length} 个号池
-                </span>
-                <StatusBadge status={g.status ?? 'ACTIVE'} />
-                <div className="ml-auto flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                  <Button variant="ghost" size="sm" onClick={() => openEditGroup(g)}>
+                    <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
+                      {subTypeLabel(g.subscriptionType)}
+                    </span>
+                    <StatusBadge status={g.status ?? 'ACTIVE'} />
+                  </div>
+                  {g.description && (
+                    <p className="mt-1 min-w-0 truncate text-xs text-[#657871] dark:text-dark-400">{g.description}</p>
+                  )}
+                </div>
+
+                <div className="grid min-w-0 grid-cols-3 gap-2 xl:w-[255px] xl:shrink-0">
+                  <div className="min-w-0 rounded-xl border border-[#E2ECE6] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7B8D86] dark:text-dark-500">倍率</p>
+                    <p className="truncate text-sm font-black text-[#203830] dark:text-dark-100">×{g.rateMultiplier ?? 1}</p>
+                  </div>
+                  <div className="min-w-0 rounded-xl border border-[#E2ECE6] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7B8D86] dark:text-dark-500">RPM</p>
+                    <p className="truncate text-sm font-black text-[#203830] dark:text-dark-100">{g.rpmLimit && g.rpmLimit > 0 ? g.rpmLimit : '不限'}</p>
+                  </div>
+                  <div className="min-w-0 rounded-xl border border-[#E2ECE6] bg-white px-3 py-2 dark:border-white/10 dark:bg-white/[0.035]">
+                    <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-[#7B8D86] dark:text-dark-500">有效期</p>
+                    <p className="truncate text-sm font-black text-[#203830] dark:text-dark-100">{g.defaultValidityDays ?? 30}天</p>
+                  </div>
+                </div>
+
+                <div className="min-w-0 rounded-xl border border-[#DDE9E3] bg-[#F7FAF6] px-3 py-2.5 dark:border-white/10 dark:bg-white/[0.035] xl:w-[245px] xl:shrink-0">
+                  <div className="flex min-w-0 items-center justify-between gap-3">
+                    <p className="truncate text-xs font-semibold text-[#7B8D86] dark:text-dark-500">账号池</p>
+                    {excludedModels.length > 0 && (
+                      <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-bold text-red-500 dark:bg-red-900/20 dark:text-red-400">
+                        排除 {excludedModels.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-1 flex min-w-0 items-end justify-between gap-3">
+                    <p className="min-w-0 truncate text-sm font-black text-[#203830] dark:text-dark-100">
+                      {gAccounts.length > 0 ? `${gAccounts.length} 个账号` : '未绑定账号'}
+                    </p>
+                    <span className="shrink-0 text-xs font-semibold text-[#7B8D86] dark:text-dark-500">
+                      {providerCount > 0 ? `${providerCount} Provider` : '需配置'}
+                    </span>
+                  </div>
+                  {gAccounts.length > 0 && (
+                    <div className="mt-2 grid h-1.5 grid-cols-4 gap-1 overflow-hidden rounded-full">
+                      {Array.from({ length: 4 }).map((_, index) => (
+                        <span
+                          key={index}
+                          className={index < Math.min(gAccounts.length, 4) ? 'rounded-full bg-[#00A6B2]' : 'rounded-full bg-[#DDE9E3] dark:bg-white/10'}
+                        />
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex min-w-0 flex-wrap items-center gap-2 xl:w-[170px] xl:shrink-0 xl:justify-end">
+                  <Button variant="secondary" size="sm" onClick={() => setRouteDrawerGroupId(g.id)}>
+                    <Icon name="cog" size="xs" /> 配置
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={() => openEditGroup(g)} aria-label={`编辑分组 ${g.name}`}>
                     <Icon name="edit" size="xs" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(g)}>
+                  <Button variant="ghost" size="sm" onClick={() => setDeleteTarget(g)} aria-label={`删除分组 ${g.name}`}>
                     <Icon name="trash" size="xs" className="text-red-500" />
                   </Button>
                 </div>
-              </button>
-
-              {/* ── group children ── */}
-              {open && (
-                <div className="border-t border-gray-100 dark:border-dark-700">
-
-                  {/* ---- accounts ---- */}
-                  <div className="px-5 py-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                        🖥 号池
-                      </span>
-                      <Button variant="ghost" size="sm" onClick={() => openBind(g.id)}>
-                        <Icon name="plus" size="xs" /> 绑定
-                      </Button>
-                    </div>
-                    {gAccounts.length === 0 ? (
-                      <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
-                        暂无 — 点击"绑定"关联账号
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {gAccounts.map((a) => (
-                          <div key={a.id} className="flex items-center gap-3 rounded-lg bg-gray-50 px-3 py-2 text-sm dark:bg-dark-800">
-                            <span className="font-medium text-gray-800 dark:text-dark-200 min-w-0 truncate flex-1">
-                              {a.name}
-                            </span>
-                            <span className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-medium ${platformBadge[a.platform] ?? 'bg-gray-100 text-gray-600'}`}>
-                              {a.platform}
-                            </span>
-                            <span className="text-xs text-gray-400 dark:text-dark-500">
-                              {a.type} · 并发 {a.concurrency ?? 3}
-                            </span>
-                            <StatusBadge status={a.status} />
-                            <Button variant="ghost" size="sm" onClick={() => unbindAccount(g.id, a.id)}>
-                              <Icon name="x" size="xs" className="text-red-400" />
-                            </Button>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="mx-5 border-t border-gray-100 dark:border-dark-700" />
-
-                  {/* ---- excluded models ---- */}
-                  <div className="px-5 py-3">
-                    <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-dark-500">
-                        🚫 排除模型
-                      </span>
-                    </div>
-                    {(() => {
-                      const excludedModels = parseExcludedModels(g);
-                      return (
-                        <>
-                          {excludedModels.length === 0 ? (
-                            <p className="py-2 text-center text-xs text-gray-300 dark:text-dark-600">
-                              暂无 — 添加模型名以禁止该分组使用
-                            </p>
-                          ) : (
-                            <div className="mb-2 space-y-1">
-                              {excludedModels.map((m) => (
-                                <div
-                                  key={m}
-                                  className="flex items-center gap-3 rounded-lg bg-red-50 px-3 py-2 text-sm dark:bg-red-900/10"
-                                >
-                                  <span className="font-medium text-red-700 dark:text-red-400 min-w-0 truncate flex-1">
-                                    {m}
-                                  </span>
-                                  <span className="rounded bg-red-100 px-1.5 py-0.5 text-[10px] text-red-600 dark:bg-red-900/30 dark:text-red-400">
-                                    已排除
-                                  </span>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => removeExcludedModel(g.id, m)}
-                                  >
-                                    <Icon name="x" size="xs" className="text-red-400" />
-                                  </Button>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                          <div className="flex gap-2">
-                            <Select
-                              options={modelOptions}
-                              value={excludeInputs[g.id] ?? ''}
-                              onChange={(v) =>
-                                setExcludeInputs((prev) => ({ ...prev, [g.id]: v }))
-                              }
-                              placeholder="选择已有模型..."
-                              searchable
-                              emptyText="无匹配模型"
-                              className="flex-1"
-                            />
-                            <Button
-                              variant="secondary"
-                              size="sm"
-                              onClick={() => addExcludedModel(g.id, excludeInputs[g.id] ?? '')}
-                            >
-                              <Icon name="plus" size="xs" /> 排除
-                            </Button>
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              )}
+              </div>
             </div>
           );
         })}
@@ -522,6 +471,7 @@ export default function GroupsPage() {
             <p className="text-sm">暂无分组，点击右上角"新建分组"开始</p>
           </div>
         )}
+        </div>
       </div>
 
       {/* ═══ Group Create/Edit Modal ═══ */}
@@ -623,6 +573,101 @@ export default function GroupsPage() {
           <Input label="优先级" type="number" value={bindPriority} onChange={(e) => setBindPriority(e.target.value)} placeholder="数字越小优先级越高，默认 50" />
         </div>
       </Modal>
+
+      {/* ═══ Route Config Drawer ═══ */}
+      <Drawer
+        open={!!routeDrawerGroup}
+        onClose={() => setRouteDrawerGroupId(null)}
+        title={routeDrawerGroup ? `路由配置 — ${routeDrawerGroup.name}` : ''}
+        width="lg"
+      >
+        {routeDrawerGroup && (() => {
+          const group = routeDrawerGroup;
+          const groupAccounts = accountsOfGroup(group.id);
+          const excludedModels = parseExcludedModels(group);
+
+          return (
+            <div className="space-y-5">
+              <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+                <div className="mb-3 flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">账号池</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-dark-400">当前分组会从这些账号中调度请求。</p>
+                  </div>
+                  <Button variant="secondary" size="sm" onClick={() => openBind(group.id)}>
+                    <Icon name="plus" size="xs" /> 绑定账号
+                  </Button>
+                </div>
+
+                {groupAccounts.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-amber-200 bg-amber-50/70 px-4 py-3 text-sm font-semibold text-amber-700 dark:border-amber-900/40 dark:bg-amber-900/10 dark:text-amber-300">
+                    未绑定账号
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 dark:divide-dark-700 dark:border-dark-700">
+                    {groupAccounts.map((account) => (
+                      <div key={account.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-2">
+                            <span className={`h-2 w-2 shrink-0 rounded-full ${accountDotColor[account.platform] ?? 'bg-gray-300'}`} />
+                            <span className="truncate text-sm font-semibold text-gray-900 dark:text-white">{account.name}</span>
+                            <span className="shrink-0 text-[11px] font-mono text-gray-400">#{account.id}</span>
+                          </div>
+                          <p className="mt-0.5 truncate text-xs text-gray-500 dark:text-dark-400">
+                            {account.platform} · {account.type}
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="sm" onClick={() => unbindAccount(group.id, account.id)} aria-label={`从 ${group.name} 解绑 ${account.name}`}>
+                          <Icon name="x" size="xs" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              <section className="rounded-xl border border-gray-200 bg-white p-4 dark:border-dark-700 dark:bg-dark-900">
+                <div className="mb-3">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">排除模型</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-dark-400">这些模型不会被路由到该分组。</p>
+                </div>
+
+                <div className="mb-3 flex gap-2">
+                  <Select
+                    options={modelOptions}
+                    value={excludeInputs[group.id] ?? ''}
+                    onChange={(v) => setExcludeInputs((prev) => ({ ...prev, [group.id]: v }))}
+                    placeholder="选择要排除的模型..."
+                    searchable
+                    emptyText="无匹配模型"
+                    className="min-w-0 flex-1"
+                  />
+                  <Button variant="secondary" onClick={() => addExcludedModel(group.id, excludeInputs[group.id] ?? '')}>
+                    <Icon name="plus" size="sm" /> 添加
+                  </Button>
+                </div>
+
+                {excludedModels.length === 0 ? (
+                  <div className="rounded-xl bg-gray-50 px-4 py-3 text-sm text-gray-500 dark:bg-dark-800 dark:text-dark-400">
+                    暂无排除模型
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-100 rounded-xl border border-gray-100 dark:divide-dark-700 dark:border-dark-700">
+                    {excludedModels.map((model) => (
+                      <div key={model} className="flex items-center justify-between gap-3 px-4 py-3">
+                        <span className="min-w-0 truncate text-sm font-medium text-gray-700 dark:text-dark-300">{model}</span>
+                        <Button variant="ghost" size="sm" onClick={() => removeExcludedModel(group.id, model)} aria-label={`取消排除模型 ${model}`}>
+                          <Icon name="x" size="xs" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            </div>
+          );
+        })()}
+      </Drawer>
 
       {/* ═══ Delete Group Confirm ═══ */}
       <ConfirmDialog

@@ -12,6 +12,7 @@ const pageTitles: Record<string, string> = {
   '/redeem': '兑换码',
   '/profile': '个人中心',
   '/admin/dashboard': '仪表盘',
+  '/admin/channels': '渠道配置',
   '/admin/accounts': '上游账号',
   '/admin/oauth': 'OAuth 授权回调',
   '/admin/groups': '分组管理',

@@ -15,9 +15,7 @@ const userNavItems = [
 
 const adminNavItems = [
   { path: '/admin/dashboard', label: '仪表盘', icon: 'grid' as const },
-  { path: '/admin/accounts', label: '上游账号', icon: 'server' as const },
-  { path: '/admin/groups', label: '分组管理', icon: 'users' as const },
-  { path: '/admin/model-prices', label: '模型价格', icon: 'dollar' as const },
+  { path: '/admin/channels', label: '渠道配置', icon: 'globe' as const },
   { path: '/admin/usage', label: '用量计费', icon: 'chartBar' as const },
   { path: '/admin/users', label: '用户管理', icon: 'userCircle' as const },
   { path: '/admin/balance-transactions', label: '余额流水', icon: 'dollar' as const },
