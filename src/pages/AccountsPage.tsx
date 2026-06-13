@@ -142,7 +142,6 @@ function buildEmptyCredValues(type: string): Record<string, string> {
 
 const PLATFORM_COLORS: Record<string, string> = {
   openai: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  openai_responses: 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
   anthropic: 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
   gemini: 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
   antigravity: 'bg-purple-50 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400',
@@ -236,8 +235,7 @@ function FormSection({
 }
 
 const PLATFORM_OPTIONS = [
-  { value: 'openai', label: 'OpenAI (Chat Completions)' },
-  { value: 'openai_responses', label: 'OpenAI (Responses API)' },
+  { value: 'openai', label: 'OpenAI' },
   { value: 'anthropic', label: 'Anthropic Claude' },
   { value: 'gemini', label: 'Google Gemini' },
   { value: 'antigravity', label: 'Antigravity' },
@@ -247,6 +245,7 @@ const PROTOCOL_OPTIONS = [
   { value: 'chat_completions', label: 'Chat Completions' },
   { value: 'responses', label: 'Responses' },
   { value: 'messages', label: 'Messages' },
+  { value: 'gemini', label: 'Gemini' },
 ];
 
 const parseProtocolsArray = (raw: string | undefined): string[] => {
@@ -259,10 +258,45 @@ const parseProtocolsArray = (raw: string | undefined): string[] => {
   }
 };
 
+const normalizePlatform = (raw: string | undefined): string => {
+  if (raw === 'openai_responses') return 'openai';
+  return raw || 'openai';
+};
+
+const platformLabel = (raw: string | undefined): string => {
+  const normalized = normalizePlatform(raw);
+  return PLATFORM_OPTIONS.find((option) => option.value === normalized)?.label ?? normalized;
+};
+
+const protocolOptionsFor = (platformValue: string, typeValue: string) => {
+  if (platformValue === 'openai' && typeValue === 'api_key') {
+    return PROTOCOL_OPTIONS.filter((p) => p.value === 'chat_completions' || p.value === 'responses');
+  }
+  if (platformValue === 'openai' && typeValue === 'oauth') {
+    return PROTOCOL_OPTIONS.filter((p) => p.value === 'responses');
+  }
+  if (platformValue === 'anthropic') {
+    return PROTOCOL_OPTIONS.filter((p) => p.value === 'messages');
+  }
+  if (platformValue === 'gemini') {
+    return PROTOCOL_OPTIONS.filter((p) => p.value === 'gemini');
+  }
+  return PROTOCOL_OPTIONS;
+};
+
+const defaultProtocolFor = (platformValue: string, typeValue: string): string => {
+  if (platformValue === 'openai' && typeValue === 'api_key') return 'responses';
+  if (platformValue === 'openai' && typeValue === 'oauth') return 'responses';
+  if (platformValue === 'anthropic') return 'messages';
+  if (platformValue === 'gemini') return 'gemini';
+  return '';
+};
+
 const PROTOCOL_COLORS: Record<string, string> = {
   chat_completions: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400',
   responses: 'bg-teal-50 text-teal-700 dark:bg-teal-900/20 dark:text-teal-400',
   messages: 'bg-amber-50 text-amber-700 dark:bg-amber-900/20 dark:text-amber-400',
+  gemini: 'bg-blue-50 text-blue-700 dark:bg-blue-900/20 dark:text-blue-400',
 };
 
 const TYPE_OPTIONS = [
@@ -318,12 +352,9 @@ export default function AccountsPage() {
   // ---- 凭证 & extra ----
   const [credValues, setCredValues] = useState<Record<string, string>>(buildEmptyCredValues('api_key'));
   const [extraBaseUrl, setExtraBaseUrl] = useState('');
-  const [extraResponsesSupported, setExtraResponsesSupported] = useState(false);
-  const [extraResponsesMode, setExtraResponsesMode] = useState('auto');
-  const [extraPassthrough, setExtraPassthrough] = useState(false);
 
   // ---- 协议 & 混合调度 ----
-  const [accountProtocols, setAccountProtocols] = useState<Record<string, boolean>>({});
+  const [accountProtocol, setAccountProtocol] = useState('responses');
   const [mixedScheduling, setMixedScheduling] = useState(false);
 
   // ---- OAuth 授权 ----
@@ -347,6 +378,19 @@ export default function AccountsPage() {
   const handleTypeChange = (newType: string) => {
     setType(newType);
     setCredValues(buildEmptyCredValues(newType));
+    const allowed = protocolOptionsFor(platform, newType);
+    if (!allowed.some((p) => p.value === accountProtocol)) {
+      setAccountProtocol(defaultProtocolFor(platform, newType));
+    }
+  };
+
+  const handlePlatformChange = (newPlatform: string) => {
+    const normalized = normalizePlatform(newPlatform);
+    setPlatform(normalized);
+    const allowed = protocolOptionsFor(normalized, type);
+    if (!allowed.some((p) => p.value === accountProtocol)) {
+      setAccountProtocol(defaultProtocolFor(normalized, type));
+    }
   };
 
   const oauthPopupRef = useRef<Window | null>(null);
@@ -517,12 +561,9 @@ export default function AccountsPage() {
     setStatusForm('ACTIVE');
     setCredValues(buildEmptyCredValues('api_key'));
     setExtraBaseUrl('');
-    setExtraResponsesSupported(false);
-    setExtraResponsesMode('auto');
-    setExtraPassthrough(false);
     setConcurrency(3);
     setPriority(50);
-    setAccountProtocols({});
+    setAccountProtocol('responses');
     setMixedScheduling(false);
     setModalOpen(true);
   };
@@ -530,7 +571,8 @@ export default function AccountsPage() {
   const openEdit = (account: Account) => {
     setEditTarget(account);
     setName(account.name);
-    setPlatform(account.platform);
+    const normalizedPlatform = normalizePlatform(account.platform);
+    setPlatform(normalizedPlatform);
     setType(account.type);
     setStatusForm(account.status);
     const fields = getCredFields(account.type);
@@ -543,18 +585,12 @@ export default function AccountsPage() {
     setCredValues(vals);
     const extra = parseJsonSafe(account.extra) as Record<string, unknown>;
     setExtraBaseUrl(typeof extra.base_url === 'string' ? extra.base_url as string : '');
-    setExtraResponsesSupported(extra.openai_responses_supported === true);
-    // 非法值兜底：只接受后端约定的 3 个取值，老数据中残留的 "force" / "none" 等一律回落 auto
-    const rawMode = extra.openai_responses_mode;
-    const validModes = ['auto', 'force_responses', 'force_chat_completions'];
-    setExtraResponsesMode(typeof rawMode === 'string' && validModes.includes(rawMode) ? rawMode : 'auto');
-    setExtraPassthrough(extra.openai_passthrough === true);
     setConcurrency(account.concurrency ?? 3);
     setPriority(account.priority ?? 50);
     const protocols = parseProtocolsArray(account.supportedProtocols);
-    const protoState: Record<string, boolean> = {};
-    PROTOCOL_OPTIONS.forEach((p) => { protoState[p.value] = protocols.includes(p.value); });
-    setAccountProtocols(protoState);
+    const allowed = protocolOptionsFor(normalizedPlatform, account.type);
+    const selected = protocols.find((proto) => allowed.some((p) => p.value === proto));
+    setAccountProtocol(selected || defaultProtocolFor(normalizedPlatform, account.type));
     setMixedScheduling(account.mixedScheduling ?? false);
     setModalOpen(true);
   };
@@ -575,9 +611,10 @@ export default function AccountsPage() {
       } else {
         delete extra.base_url;
       }
-      extra.openai_responses_supported = extraResponsesSupported;
-      extra.openai_responses_mode = extraResponsesMode;
-      extra.openai_passthrough = extraPassthrough;
+      delete extra.openai_responses_supported;
+      delete extra.openai_responses_mode;
+      delete extra.openai_passthrough;
+      const selectedProtocol = accountProtocol || defaultProtocolFor(platform, type);
       const payload = {
         name: name.trim(),
         platform,
@@ -587,7 +624,7 @@ export default function AccountsPage() {
         extra: JSON.stringify(extra),
         concurrency,
         priority,
-        supportedProtocols: JSON.stringify(PROTOCOL_OPTIONS.filter((p) => accountProtocols[p.value]).map((p) => p.value)),
+        supportedProtocols: JSON.stringify(selectedProtocol ? [selectedProtocol] : []),
         mixedScheduling,
       };
       if (editTarget) {
@@ -757,7 +794,7 @@ export default function AccountsPage() {
   const filteredAccounts = useMemo(() => {
     return accounts.filter((a) => {
       if (search && !a.name.toLowerCase().includes(search.toLowerCase())) return false;
-      if (filterPlatform && a.platform !== filterPlatform) return false;
+      if (filterPlatform && normalizePlatform(a.platform) !== filterPlatform) return false;
       if (filterType && a.type !== filterType) return false;
       if (filterStatus && a.status !== filterStatus) return false;
       return true;
@@ -769,7 +806,8 @@ export default function AccountsPage() {
     const byPlatform: Record<string, number> = {};
     let active = 0, disabled = 0, schedulableCount = 0;
     accounts.forEach((a) => {
-      byPlatform[a.platform] = (byPlatform[a.platform] ?? 0) + 1;
+      const normalizedPlatform = normalizePlatform(a.platform);
+      byPlatform[normalizedPlatform] = (byPlatform[normalizedPlatform] ?? 0) + 1;
       if (a.status === 'ACTIVE') active++;
       else disabled++;
       if (a.schedulable) schedulableCount++;
@@ -912,8 +950,8 @@ export default function AccountsPage() {
                     >
                       {/* 平台 + 类型 + 状态 */}
                       <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
-                          {a.platform ?? '—'}
+                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[normalizePlatform(a.platform)] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400'}`}>
+                          {platformLabel(a.platform)}
                         </span>
                         <span className="inline-flex rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-600 dark:bg-dark-800 dark:text-dark-300">
                           {a.type}
@@ -1135,7 +1173,7 @@ export default function AccountsPage() {
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <div>
                   <label className="input-label">平台</label>
-                  <Select options={PLATFORM_OPTIONS} value={platform} onChange={setPlatform} />
+                  <Select options={PLATFORM_OPTIONS} value={platform} onChange={handlePlatformChange} />
                 </div>
                 <div>
                   <label className="input-label">类型</label>
@@ -1207,30 +1245,31 @@ export default function AccountsPage() {
             </div>
           </FormSection>
 
-          <FormSection icon="shield" tone="blue" title="协议能力" description="配置此账号支持的上游 API 协议和跨 Provider 调度能力。">
+          <FormSection icon="shield" tone="blue" title="上游协议" description="每个账号必须明确选择一个实际上游 API 协议，网关按客户端协议和上游协议决定是否转换。">
             <div className="space-y-4">
               <div>
                 <div className="flex flex-wrap gap-3">
-                  {PROTOCOL_OPTIONS.map((p) => (
+                  {protocolOptionsFor(platform, type).map((p) => (
                     <label
                       key={p.value}
                       className={`inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm cursor-pointer transition-colors ${
-                        accountProtocols[p.value]
+                        accountProtocol === p.value
                           ? 'border-violet-300 bg-violet-50 text-violet-700 dark:border-violet-600 dark:bg-violet-900/20 dark:text-violet-300'
                           : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-dark-600 dark:bg-dark-800 dark:text-dark-400'
                       }`}
                     >
                       <input
-                        type="checkbox"
-                        checked={accountProtocols[p.value] ?? false}
-                        onChange={(e) => setAccountProtocols((prev) => ({ ...prev, [p.value]: e.target.checked }))}
+                        type="radio"
+                        name="account-protocol"
+                        checked={accountProtocol === p.value}
+                        onChange={() => setAccountProtocol(p.value)}
                         className="sr-only"
                       />
                       {p.label}
                     </label>
                   ))}
                 </div>
-                <p className="mt-2 text-xs text-gray-400">留空则不限制协议。</p>
+                <p className="mt-2 text-xs text-gray-400">只能选择一个协议。OpenAI API Key 可选 Chat Completions 或 Responses；OpenAI OAuth 固定 Responses；Anthropic 固定 Messages。</p>
               </div>
 
               <div className="rounded-lg border border-gray-200 p-4 dark:border-dark-600">
@@ -1244,7 +1283,7 @@ export default function AccountsPage() {
             </div>
           </FormSection>
 
-          <FormSection icon="server" tone="gray" title="额外配置" description="覆盖上游地址和 OpenAI Responses 相关兼容策略。">
+          <FormSection icon="server" tone="gray" title="额外配置" description="覆盖上游地址。协议转换与透传由客户端协议和账号上游协议自动决定。">
             <div className="space-y-4">
               <div>
                 <Input
@@ -1254,36 +1293,6 @@ export default function AccountsPage() {
                   placeholder="https://custom-api.example.com（留空则使用默认地址）"
                 />
                 <p className="mt-2 text-xs text-gray-400">覆盖默认的 API 上游地址。例如 Anthropic 的 https://api.anthropic.com，留空则走官方默认。</p>
-              </div>
-
-              <div className="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-dark-600">
-                <Toggle
-                  checked={extraResponsesSupported}
-                  onChange={setExtraResponsesSupported}
-                  label="支持 OpenAI Responses API"
-                />
-                <p className="text-xs text-gray-400">上游是否支持 /v1/responses 端点。开启后网关可将请求转换为 Responses 格式发送。</p>
-
-                <div>
-                  <label className="input-label">Responses API 模式</label>
-                  <Select
-                    value={extraResponsesMode}
-                    onChange={setExtraResponsesMode}
-                    options={[
-                      { value: 'auto', label: 'auto — 自动检测' },
-                      { value: 'force_responses', label: 'force_responses — 强制走 /v1/responses' },
-                      { value: 'force_chat_completions', label: 'force_chat_completions — 强制走 /v1/chat/completions' },
-                    ]}
-                  />
-                </div>
-                <p className="text-xs text-gray-400">auto 由网关结合自动探测结果判断；force_responses 始终使用 /v1/responses；force_chat_completions 强制降级为 /v1/chat/completions。</p>
-
-                <Toggle
-                  checked={extraPassthrough}
-                  onChange={setExtraPassthrough}
-                  label="Passthrough 透传模式"
-                />
-                <p className="text-xs text-gray-400">开启后上游请求不做协议转换，直接透传原始请求体。</p>
               </div>
             </div>
           </FormSection>
@@ -1460,8 +1469,8 @@ export default function AccountsPage() {
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs font-mono text-gray-400 dark:text-dark-500">#{a.id}</span>
                   <span className="text-sm font-semibold text-gray-900 dark:text-white">{a.name}</span>
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[a.platform] ?? 'bg-gray-100 text-gray-600'}`}>
-                    {a.platform}
+                  <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${PLATFORM_COLORS[normalizePlatform(a.platform)] ?? 'bg-gray-100 text-gray-600'}`}>
+                    {platformLabel(a.platform)}
                   </span>
                   <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-600 dark:bg-dark-800 dark:text-dark-300">{a.type}</span>
                   <StatusBadge status={a.status ?? 'ACTIVE'} />
