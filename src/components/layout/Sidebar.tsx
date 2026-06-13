@@ -57,9 +57,10 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
       >
         {/* Brand */}
         <div className={clsx('sidebar-header', collapsed && 'justify-center px-0')}>
-          <div className="relative flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-400 via-violet-400 to-pink-400 shadow-lg shadow-pink-400/20">
-            <span className="absolute inset-[3px] rounded-[14px] border border-white/35" />
-            <span className="relative text-sm font-bold text-white">LG</span>
+          <div className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-[#101418] shadow-lg shadow-black/10 dark:bg-[#E8E2D8]">
+            <span className="absolute inset-[3px] rounded-lg border border-[#A77A45]/45" />
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-[#A77A45] dark:border-[#0B1120]" />
+            <span className="relative text-sm font-bold text-white dark:text-[#101418]">LG</span>
           </div>
           {!collapsed && (
             <div className="min-w-0">
@@ -152,9 +153,9 @@ export function Sidebar({ collapsed, mobileOpen, onMobileClose, onToggleCollapse
           collapsed && 'px-1.5'
         )}>
           {user?.balance != null && !collapsed && (
-            <div className="relative mb-2 overflow-hidden rounded-2xl border border-slate-200/80 bg-sky-50 p-3 text-center shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
-              <div className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-pink-300/80 to-transparent" />
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 dark:text-sky-300">余额</span>
+            <div className="relative mb-2 overflow-hidden rounded-xl border border-[#D9C8AF] bg-[#FAF8F2] p-3 text-center shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
+              <div className="absolute inset-x-0 top-0 h-px bg-[#A77A45]/45" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-[#6F512D] dark:text-[#D8BE96]">余额</span>
               <p className="text-lg font-bold tracking-tight text-slate-900 dark:text-white">
                 ${(Math.floor(Number(user.balance) * 100) / 100).toFixed(2)}
               </p>

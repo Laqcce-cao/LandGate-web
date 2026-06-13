@@ -10,7 +10,7 @@ export function AppLayout() {
   const location = useLocation();
 
   return (
-    <div className="relative min-h-screen overflow-x-hidden bg-[#EAF5FF] dark:bg-dark-950">
+    <div className="relative min-h-screen overflow-x-hidden bg-[#F6F6F3] dark:bg-dark-950">
       <AmbientScene />
 
       <Sidebar

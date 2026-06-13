@@ -82,14 +82,14 @@ function ChartSectionHeader({ preset, onStartChange, onEndChange, onPresetChange
         <p className="mt-1 text-xs text-slate-400 dark:text-dark-500">模型分布与 Token 趋势共用同一时间范围</p>
       </div>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="flex rounded-xl border border-slate-200/80 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
+        <div className="flex rounded-lg border border-slate-200/80 bg-white p-1 shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
           {PRESETS.map((p) => (
             <button
               key={p.key}
               className={clsx(
                 'rounded-lg px-3 py-1.5 text-xs font-medium transition-all duration-200',
                 preset === p.key
-                  ? 'bg-slate-900 text-white shadow-sm dark:bg-white dark:text-slate-900'
+                  ? 'bg-[#101418] text-white shadow-sm dark:bg-[#E8E2D8] dark:text-[#101418]'
                   : 'text-slate-500 hover:text-slate-800 dark:text-dark-400 dark:hover:text-dark-200'
               )}
               onClick={() => onPresetChange(p.key)}
@@ -99,7 +99,7 @@ function ChartSectionHeader({ preset, onStartChange, onEndChange, onPresetChange
           ))}
         </div>
         {isCustom && (
-          <div className="flex items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-2 py-1 shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
+          <div className="flex items-center gap-2 rounded-lg border border-slate-200/80 bg-white px-2 py-1 shadow-sm dark:border-white/10 dark:bg-white/[0.05]">
             <DatePicker value={start} onChange={onStartChange} max={end} />
             <span className="text-xs text-gray-400 dark:text-dark-500">至</span>
             <DatePicker value={end} onChange={onEndChange} min={start} max={todayStr()} />
@@ -110,63 +110,63 @@ function ChartSectionHeader({ preset, onStartChange, onEndChange, onPresetChange
   );
 }
 
-// ─── Stat Card (gradient style) ────────────────────────────
+// ─── Stat Card ─────────────────────────────────────────────
 
 interface CardColorScheme {
-  gradient: string;
-  glow: string;
+  accent: string;
+  wash: string;
   text: string;
   iconBg: string;
 }
 
 const COLOR_MAP: Record<string, CardColorScheme> = {
   emerald: {
-    gradient: 'from-emerald-500/10 via-teal-500/5 to-transparent dark:from-emerald-500/15 dark:via-teal-500/10',
-    glow: 'shadow-emerald-500/5',
-    text: 'text-emerald-600 dark:text-emerald-400',
-    iconBg: 'bg-gradient-to-br from-emerald-400 to-teal-500',
+    accent: 'bg-[#65776B]',
+    wash: 'bg-[#F0F3F1] dark:bg-[#65776B]/15',
+    text: 'text-[#52665B] dark:text-[#AFC2B5]',
+    iconBg: 'bg-[#F0F3F1] text-[#65776B] dark:bg-[#65776B]/15 dark:text-[#AFC2B5]',
   },
   indigo: {
-    gradient: 'from-indigo-500/10 via-violet-500/5 to-transparent dark:from-indigo-500/15 dark:via-violet-500/10',
-    glow: 'shadow-indigo-500/5',
-    text: 'text-indigo-600 dark:text-indigo-400',
-    iconBg: 'bg-gradient-to-br from-indigo-400 to-violet-500',
+    accent: 'bg-[#1E2A44]',
+    wash: 'bg-[#F1F2F1] dark:bg-[#7383A3]/15',
+    text: 'text-[#1E2A44] dark:text-[#B8C2D8]',
+    iconBg: 'bg-[#F1F2F1] text-[#1E2A44] dark:bg-[#7383A3]/15 dark:text-[#B8C2D8]',
   },
   blue: {
-    gradient: 'from-blue-500/10 via-cyan-500/5 to-transparent dark:from-blue-500/15 dark:via-cyan-500/10',
-    glow: 'shadow-blue-500/5',
-    text: 'text-blue-600 dark:text-blue-400',
-    iconBg: 'bg-gradient-to-br from-blue-400 to-cyan-500',
+    accent: 'bg-[#59677A]',
+    wash: 'bg-[#F0F1F2] dark:bg-[#59677A]/18',
+    text: 'text-[#4A5667] dark:text-[#B5BECA]',
+    iconBg: 'bg-[#F0F1F2] text-[#59677A] dark:bg-[#59677A]/18 dark:text-[#B5BECA]',
   },
   rose: {
-    gradient: 'from-rose-500/10 via-pink-500/5 to-transparent dark:from-rose-500/15 dark:via-pink-500/10',
-    glow: 'shadow-rose-500/5',
-    text: 'text-rose-600 dark:text-rose-400',
-    iconBg: 'bg-gradient-to-br from-rose-400 to-pink-500',
+    accent: 'bg-[#A65F5A]',
+    wash: 'bg-[#F7F0EF] dark:bg-[#A65F5A]/14',
+    text: 'text-[#854A46] dark:text-[#D7A29E]',
+    iconBg: 'bg-[#F7F0EF] text-[#A65F5A] dark:bg-[#A65F5A]/14 dark:text-[#D7A29E]',
   },
   amber: {
-    gradient: 'from-amber-500/10 via-orange-500/5 to-transparent dark:from-amber-500/15 dark:via-orange-500/10',
-    glow: 'shadow-amber-500/5',
-    text: 'text-amber-600 dark:text-amber-400',
-    iconBg: 'bg-gradient-to-br from-amber-400 to-orange-500',
+    accent: 'bg-[#A77A45]',
+    wash: 'bg-[#FAF8F2] dark:bg-[#A77A45]/14',
+    text: 'text-[#6F512D] dark:text-[#D8BE96]',
+    iconBg: 'bg-[#FAF8F2] text-[#A77A45] dark:bg-[#A77A45]/14 dark:text-[#D8BE96]',
   },
   violet: {
-    gradient: 'from-violet-500/10 via-purple-500/5 to-transparent dark:from-violet-500/15 dark:via-purple-500/10',
-    glow: 'shadow-violet-500/5',
-    text: 'text-violet-600 dark:text-violet-400',
-    iconBg: 'bg-gradient-to-br from-violet-400 to-purple-500',
+    accent: 'bg-[#756C62]',
+    wash: 'bg-[#F2F1EE] dark:bg-[#756C62]/16',
+    text: 'text-[#635A51] dark:text-[#C3B8AA]',
+    iconBg: 'bg-[#F2F1EE] text-[#756C62] dark:bg-[#756C62]/16 dark:text-[#C3B8AA]',
   },
   cyan: {
-    gradient: 'from-cyan-500/10 via-sky-500/5 to-transparent dark:from-cyan-500/15 dark:via-sky-500/10',
-    glow: 'shadow-cyan-500/5',
-    text: 'text-cyan-600 dark:text-cyan-400',
-    iconBg: 'bg-gradient-to-br from-cyan-400 to-sky-500',
+    accent: 'bg-[#60717A]',
+    wash: 'bg-[#EFF2F2] dark:bg-[#60717A]/16',
+    text: 'text-[#506169] dark:text-[#B1C0C5]',
+    iconBg: 'bg-[#EFF2F2] text-[#60717A] dark:bg-[#60717A]/16 dark:text-[#B1C0C5]',
   },
   teal: {
-    gradient: 'from-teal-500/10 via-emerald-500/5 to-transparent dark:from-teal-500/15 dark:via-emerald-500/10',
-    glow: 'shadow-teal-500/5',
-    text: 'text-teal-600 dark:text-teal-400',
-    iconBg: 'bg-gradient-to-br from-teal-400 to-emerald-500',
+    accent: 'bg-[#6F8176]',
+    wash: 'bg-[#F0F3F1] dark:bg-[#6F8176]/16',
+    text: 'text-[#596C61] dark:text-[#B7C7BC]',
+    iconBg: 'bg-[#F0F3F1] text-[#6F8176] dark:bg-[#6F8176]/16 dark:text-[#B7C7BC]',
   },
 };
 
@@ -180,16 +180,14 @@ function DashboardStatCard({ icon, color, label, value, subtext }: {
   const c = COLOR_MAP[color];
   return (
     <div className={clsx(
-      'group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-4 shadow-[0_8px_20px_rgba(51,65,85,0.07)] transition-all duration-300',
+      'group relative overflow-hidden rounded-xl border border-[#D8D5CC] bg-white/90 p-4 shadow-[0_10px_26px_rgba(16,20,24,0.055)] transition-all duration-300',
       'hover:-translate-y-0.5 hover:shadow-xl dark:border-white/10 dark:bg-white/[0.055]',
-      c.glow,
     )}>
-      {/* Gradient overlay */}
-      <div className={clsx('pointer-events-none absolute inset-0 bg-gradient-to-br opacity-0 transition-opacity duration-300 group-hover:opacity-100', c.gradient)} />
-      <div className="pointer-events-none absolute -right-8 -top-12 h-24 w-24 rotate-12 rounded-[2rem] border border-slate-900/[0.04] bg-white/35 transition-transform duration-500 group-hover:translate-y-3 group-hover:rotate-45 dark:border-white/10 dark:bg-white/[0.04]" />
+      <div className={clsx('pointer-events-none absolute inset-x-0 top-0 h-px', c.accent)} />
+      <div className={clsx('pointer-events-none absolute -right-8 -top-12 h-24 w-24 rotate-12 rounded-[2rem] opacity-70 transition-transform duration-500 group-hover:translate-y-3 group-hover:rotate-45', c.wash)} />
       <div className="relative flex items-center gap-3">
-        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl shadow-sm', c.iconBg)}>
-          <Icon name={icon} size="md" className="text-white" />
+        <div className={clsx('flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ring-1 ring-black/[0.04] dark:ring-white/10', c.iconBg)}>
+          <Icon name={icon} size="md" />
         </div>
         <div>
           <p className="text-xs font-medium text-gray-400 dark:text-dark-500">{label}</p>
@@ -206,15 +204,15 @@ function DashboardStatCard({ icon, color, label, value, subtext }: {
 // ─── Chart Colors ───────────────────────────────────────────
 
 const CHART_COLORS_LIGHT = [
-  '#818cf8', '#a78bfa', '#c084fc', '#e879f9',
-  '#f472b6', '#fb7185', '#fb923c', '#fbbf24',
-  '#4ade80', '#2dd4bf', '#22d3ee', '#60a5fa',
+  '#1E2A44', '#A77A45', '#65776B', '#A65F5A',
+  '#59677A', '#756C62', '#60717A', '#8A7156',
+  '#6F8176', '#8C8F96', '#4E5663', '#B08B62',
 ];
 
 const CHART_COLORS_DARK = [
-  '#a5b4fc', '#c4b5fd', '#d8b4fe', '#f0abfc',
-  '#f9a8d4', '#fda4af', '#fdba74', '#fcd34d',
-  '#86efac', '#5eead4', '#67e8f9', '#93c5fd',
+  '#B8C2D8', '#D8BE96', '#AFC2B5', '#D7A29E',
+  '#B5BECA', '#C3B8AA', '#B1C0C5', '#D0B18B',
+  '#B7C7BC', '#A8ABB4', '#A9B0BC', '#E0C09A',
 ];
 
 // ─── Model Distribution Chart ───────────────────────────────
@@ -238,12 +236,12 @@ function ModelDistributionCard({ data, loading, isDark }: {
   }, [sorted]);
 
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_20px_rgba(51,65,85,0.07)] dark:border-white/10 dark:bg-white/[0.055]">
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-teal-400/60 to-transparent" />
+    <div className="group relative overflow-hidden rounded-xl border border-[#D8D5CC] bg-white/90 p-5 shadow-[0_10px_26px_rgba(16,20,24,0.055)] dark:border-white/10 dark:bg-white/[0.055]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-[#A77A45]/50" />
       <h3 className="mb-4 text-sm font-semibold text-gray-900 dark:text-white">模型分布</h3>
       {loading ? (
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#A77A45] border-t-transparent" />
         </div>
       ) : top.length === 0 ? (
         <div className="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
@@ -351,16 +349,16 @@ function TokenTrendCard({ data, loading, isDark }: {
     return total;
   }, [data]);
 
-  const gridColor = isDark ? 'rgba(55,65,81,0.3)' : 'rgba(229,231,235,0.6)';
+  const gridColor = isDark ? 'rgba(120,112,101,0.24)' : 'rgba(210,207,198,0.72)';
   const textColor = isDark ? '#9ca3af' : '#9ca3af';
 
   const lineColors = isDark
-    ? { input: '#93c5fd', output: '#6ee7b7', cache: '#67e8f9' }
-    : { input: '#3b82f6', output: '#10b981', cache: '#06b6d4' };
+    ? { input: '#B8C2D8', output: '#D8BE96', cache: '#AFC2B5' }
+    : { input: '#1E2A44', output: '#A77A45', cache: '#65776B' };
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-[0_8px_20px_rgba(51,65,85,0.07)] dark:border-white/10 dark:bg-white/[0.055]">
-      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-gradient-to-r from-transparent via-blue-400/60 to-transparent" />
+    <div className="relative overflow-hidden rounded-xl border border-[#D8D5CC] bg-white/90 p-5 shadow-[0_10px_26px_rgba(16,20,24,0.055)] dark:border-white/10 dark:bg-white/[0.055]">
+      <div className="pointer-events-none absolute inset-x-6 top-0 h-px bg-[#1E2A44]/45 dark:bg-[#D8BE96]/45" />
       <h3 className="mb-1 text-sm font-semibold text-gray-900 dark:text-white">Token 用量趋势</h3>
       <p className="mb-4 text-xs text-gray-400 dark:text-dark-500">
         {loading || data.length === 0
@@ -369,7 +367,7 @@ function TokenTrendCard({ data, loading, isDark }: {
       </p>
       {loading ? (
         <div className="flex h-64 items-center justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-violet-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#A77A45] border-t-transparent" />
         </div>
       ) : chartData.length === 0 ? (
         <div className="flex h-64 items-center justify-center text-sm text-gray-400 dark:text-dark-500">暂无数据</div>
